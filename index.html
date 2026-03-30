@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>家裡有什麼 - 庫存小幫手</title>
+    <title>家裡有什麼 - 雲端同步版</title>
     <link rel="stylesheet" href="style.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 </head>
 <body>
     <header>
@@ -13,44 +16,87 @@
 
     <main>
         <section class="add-item-section">
-            <h2>新增物品</h2>
-            <button class="scan-btn" id="scanBtn">📷 掃描條碼</button>
-            <div id="reader" style="width: 100%; display: none;"></div>
-
             <form id="inventoryForm">
-                <label for="itemName">品項名稱：</label>
-                <input type="text" id="itemName" placeholder="例如：鮮奶" required>
-
-                <label for="category">類別：</label>
-                <select id="category">
-                    <option value="冷藏">冷藏</option>
-                    <option value="冷凍">冷凍</option>
-                    <option value="常溫乾貨">常溫乾貨</option>
-                    <option value="生活用品">生活用品</option>
-                </select>
-
-                <label for="location">擺放位置：</label>
-                <input type="text" id="location" placeholder="例如：冰箱下層" required>
-
-                <label for="purchaseDate">購買日：</label>
-                <input type="date" id="purchaseDate" required>
-
-                <label for="expiryDate">到期日：</label>
+                <label>品項：</label>
+                <input type="text" id="itemName" placeholder="例如：大鮮奶" required>
+                
+                <label>擺放位置：</label>
+                <input type="text" id="location" placeholder="例如：冰箱上層" required>
+                
+                <label>到期日：</label>
                 <input type="date" id="expiryDate" required>
 
-                <label for="quantity">數量：</label>
-                <input type="number" id="quantity" value="1" min="1" required>
-
-                <button type="submit" class="submit-btn">✅ 存入庫存</button>
+                <button type="submit" class="submit-btn">✅ 存入雲端 (全家同步)</button>
             </form>
         </section>
 
         <section class="list-section">
-            <h2>清單總覽</h2>
-            <div id="inventoryList">
-                <p style="text-align:center; color: #666;">目前還沒有物品喔！</p>
-            </div>
+            <h2>📢 目前庫存清單</h2>
+            <div id="inventoryList">連線中...</div>
         </section>
     </main>
+
+    <script>
+        // 1. 你的專屬 Firebase 設定
+        const firebaseConfig = {
+            apiKey: "AIzaSyDSKX93lBA2H9fheiDA_M3Wc3nOHYGpGbo",
+            authDomain: "stock-a5e10.firebaseapp.com",
+            projectId: "stock-a5e10",
+            storageBucket: "stock-a5e10.firebasestorage.app",
+            messagingSenderId: "699679970059",
+            appId: "1:699679970059:web:dfea8903261a804ac4880e",
+            databaseURL: "https://stock-a5e10-default-rtdb.firebaseio.com" // 我幫你預估的網址
+        };
+
+        // 2. 初始化 Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // 3. 當按下「存入雲端」按鈕時
+        document.getElementById('inventoryForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const name = document.getElementById('itemName').value;
+            const loc = document.getElementById('location').value;
+            const exp = document.getElementById('expiryDate').value;
+
+            // 把資料推送到 Firebase 雲端
+            database.ref('items').push({
+                name: name,
+                location: loc,
+                expiry: exp,
+                timestamp: Date.now()
+            }).then(() => {
+                alert('已同步到全家人手機！');
+                document.getElementById('inventoryForm').reset(); // 清空表單
+            });
+        });
+
+        // 4. 即時監聽雲端資料庫，有人新增東西就立刻顯示
+        database.ref('items').on('value', (snapshot) => {
+            const data = snapshot.val();
+            const listDiv = document.getElementById('inventoryList');
+            listDiv.innerHTML = ''; 
+
+            if (!data) {
+                listDiv.innerHTML = '<p style="text-align:center;">目前沒有東西喔！</p>';
+                return;
+            }
+
+            for (let id in data) {
+                const item = data[id];
+                const card = document.createElement('div');
+                card.className = 'item-card';
+                card.innerHTML = `
+                    <div style="background: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #4CAF50; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
+                        <strong style="font-size: 20px;">${item.name}</strong><br>
+                        📍 位置：${item.location}<br>
+                        📅 到期：<span style="color: red;">${item.expiry}</span>
+                    </div>
+                `;
+                listDiv.prepend(card); // 新的排在上面
+            }
+        });
+    </script>
 </body>
 </html>
