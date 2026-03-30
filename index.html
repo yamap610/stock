@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>家裡有什麼 - 庫存小幫手</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>📦 我們的庫存</h1>
+    </header>
+
+    <main>
+        <section class="add-item-section">
+            <h2>新增物品</h2>
+            <button class="scan-btn" id="scanBtn">📷 掃描條碼</button>
+            <div id="reader" style="width: 100%; display: none;"></div>
+
+            <form id="inventoryForm">
+                <label for="itemName">品項名稱：</label>
+                <input type="text" id="itemName" placeholder="例如：鮮奶" required>
+
+                <label for="category">類別：</label>
+                <select id="category">
+                    <option value="冷藏">冷藏</option>
+                    <option value="冷凍">冷凍</option>
+                    <option value="常溫乾貨">常溫乾貨</option>
+                    <option value="生活用品">生活用品</option>
+                </select>
+
+                <label for="location">擺放位置：</label>
+                <input type="text" id="location" placeholder="例如：冰箱下層" required>
+
+                <label for="purchaseDate">購買日：</label>
+                <input type="date" id="purchaseDate" required>
+
+                <label for="expiryDate">到期日：</label>
+                <input type="date" id="expiryDate" required>
+
+                <label for="quantity">數量：</label>
+                <input type="number" id="quantity" value="1" min="1" required>
+
+                <button type="submit" class="submit-btn">✅ 存入庫存</button>
+            </form>
+        </section>
+
+        <section class="list-section">
+            <h2>清單總覽</h2>
+            <div id="inventoryList">
+                <p style="text-align:center; color: #666;">目前還沒有物品喔！</p>
+            </div>
+        </section>
+    </main>
+</body>
+</html>
