@@ -3,386 +3,279 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>家庭雲端物資管理系統</title>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <title>家庭庫存管家 - 奶茶日系風</title>
+    <!-- 1. 引入必要的工具套件 -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
     <style>
-        body { font-family: 'Noto Sans TC', sans-serif; background-color: #F8F5F2; color: #4A3F35; -webkit-tap-highlight-color: transparent; }
-        .dashboard-card { background: white; border-radius: 24px; padding: 20px; box-shadow: 0 4px 20px rgba(164, 144, 124, 0.08); transition: transform 0.2s; border: 1px solid #E8DFCE; }
-        .dashboard-card:active { transform: scale(0.97); }
-        .input-label { font-size: 14px; font-weight: bold; color: #8E7860; margin-bottom: 6px; display: block; }
-        .form-input { width: 100%; padding: 14px; border: 2px solid #E8DFCE; border-radius: 16px; outline: none; background: #FFFFFF; font-size: 16px; transition: border-color 0.2s; }
-        .form-input:focus { border-color: #A4907C; }
-        .btn-primary { background: #A4907C; color: white; font-weight: bold; padding: 16px; border-radius: 20px; width: 100%; transition: opacity 0.2s; }
-        .category-btn { border: 2px solid #E8DFCE; border-radius: 16px; padding: 12px; text-align: left; background: white; width: 100%; }
-        .category-btn.active { border-color: #A4907C; background: #FAF8F5; }
-        .badge-warning { background: #FFF4E5; color: #D48806; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; }
-        .badge-danger { background: #FFF1F0; color: #CF1322; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; }
-        #reader video { border-radius: 20px !important; }
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        input[type="date"] { min-height: 3rem; }
     </style>
 </head>
-<body class="pb-32">
+<body class="bg-[#F5F0EA]">
+    <div id="root"></div>
 
-    <!-- 頂部資訊列 -->
-    <header id="topHeader" class="hidden bg-[#D4C4B7] p-4 sticky top-0 z-50 rounded-b-[32px] shadow-md flex justify-between items-center max-w-md mx-auto">
-        <div>
-            <h1 class="text-white font-bold text-lg">📦 雲端物資總管</h1>
-            <div id="familyBadge" class="text-[10px] text-white/80 font-bold">群組：--</div>
-        </div>
-        <button onclick="showPage('settings')" class="bg-white/20 p-2 rounded-full text-white">⚙️</button>
-    </header>
+    <!-- 2. 引入 Firebase SDK (由外部載入) -->
+    <script type="module" babel>
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-    <!-- 登入頁面 (最高優先級) -->
-    <div id="welcomePage" class="fixed inset-0 z-[100] bg-[#FDFBF9] flex items-center justify-center p-8">
-        <div class="w-full max-w-sm text-center">
-            <div class="text-7xl mb-6">🏠</div>
-            <h2 class="text-2xl font-bold mb-2">家庭同步登入</h2>
-            <p class="text-[#A4907C] mb-8">請輸入家庭專屬代碼<br>以同步所有成員的庫存資料</p>
-            <input type="text" id="initCode" placeholder="例如：WANG2024" class="w-full p-5 border-2 border-[#D4C4B7] rounded-3xl text-center text-2xl font-bold uppercase mb-6 outline-none shadow-sm">
-            <button onclick="saveInitCode()" class="btn-primary text-lg shadow-lg">進入系統</button>
-        </div>
-    </div>
-
-    <!-- 主畫面內容 -->
-    <main id="app" class="p-4 max-w-md mx-auto min-h-[70vh]">
-        <!-- 動態渲染內容 -->
-    </main>
-
-    <!-- 底部導覽列 -->
-    <nav id="navBar" class="hidden fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-[#E8DFCE] flex justify-around p-3 rounded-t-[32px] shadow-2xl z-50">
-        <button onclick="showPage('dashboard')" class="nav-item flex flex-col items-center p-2 w-1/3">
-            <span class="text-2xl">🏠</span><span class="text-[11px] mt-1 font-bold">總覽</span>
-        </button>
-        <button onclick="showPage('add')" class="nav-item flex flex-col items-center p-2 w-1/3">
-            <div class="bg-[#A4907C] text-white p-3 rounded-2xl -mt-10 shadow-xl active:scale-95 transition-transform"><span class="text-2xl">＋</span></div>
-            <span class="text-[11px] mt-1 font-bold">新增</span>
-        </button>
-        <button onclick="showPage('list', {filterLocation: '全部'})" class="nav-item flex flex-col items-center p-2 w-1/3">
-            <span class="text-2xl">📋</span><span class="text-[11px] mt-1 font-bold">搜尋</span>
-        </button>
-    </nav>
-
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, query, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyDSKX93lBA2H9fheiDA_M3Wc3nOHYGpGbo",
-            authDomain: "stock-a5e10.firebaseapp.com",
-            databaseURL: "https://stock-a5e10-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "stock-a5e10",
-            storageBucket: "stock-a5e10.firebasestorage.app",
-            messagingSenderId: "699679970059",
-            appId: "1:699679970059:web:dfea8903261a804ac4880e"
+        // --- ⚠️ 您的 Firebase 設定 ---
+        // 系統會自動帶入環境變數，若要自己部署，請替換成您在 Firebase 主控台看到的 config
+        const firebaseConfig = window.__firebase_config ? JSON.parse(window.__firebase_config) : {
+            apiKey: "",
+            authDomain: "",
+            projectId: "",
+            storageBucket: "",
+            messagingSenderId: "",
+            appId: ""
         };
 
         const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
         const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appIdPrefix = window.__app_id || 'home-inventory-v2';
 
-        let familyCode = localStorage.getItem('familyCode');
-        let items = [];
-        let unsubscribe = null;
-        let selectedCategory = '🍚食物';
-        let currentImage = '';
-        const locations = ['冰箱冷藏', '冷凍庫', '廚房', '零食區', '廁所', '倉庫', '其他'];
-        const categories = [
-            { id: '🥩生鮮', label: '🥩 生鮮', sub: '如：肉、魚、蛋、蔬菜' },
-            { id: '🍚食物', label: '🍚 食物', sub: '如：熟食、水果、麵包' },
-            { id: '🥤飲品', label: '🥤 飲品', sub: '如：牛奶、果汁、飲料' },
-            { id: '🧂醬料', label: '🧂 醬料', sub: '如：醬油、沙拉醬、調味料' },
-            { id: '❄️冷凍', label: '❄️ 冷凍', sub: '如：冷凍食品、冷凍肉' }
+        const { useState, useEffect, useRef } = React;
+
+        // --- 3. 地點分類 ---
+        const LOCATIONS = [
+            { id: 'fridge', name: '冷藏', icon: '🧊', desc: '菜、肉、蛋' },
+            { id: 'freezer', name: '冷凍', icon: '❄️', desc: '水餃、肉、冰品' },
+            { id: 'kitchen', name: '廚房', icon: '🍳', desc: '泡麵、罐頭、醬料' },
+            { id: 'snacks', name: '零食櫃', icon: '🍪', desc: '餅乾、糖果' },
+            { id: 'hygiene', name: '衛生用品', icon: '🚿', desc: '衛生紙、牙膏' },
+            { id: 'cleaning', name: '生活用品', icon: '🧽', desc: '洗碗、洗衣、垃圾袋' },
+            { id: 'medicine', name: '藥品', icon: '💊', desc: '藥、OK繃' },
+            { id: 'warehouse', name: '倉庫', icon: '📦', desc: '大量備品、雜物' },
+            { id: 'other', name: '其他', icon: '🏷️', desc: '自訂位置' },
         ];
 
-        onAuthStateChanged(auth, async (user) => {
-            if (!user) await signInAnonymously(auth);
-            if (familyCode) {
-                document.getElementById('welcomePage').classList.add('hidden');
-                initApp();
-            }
-        });
+        // --- 4. 主程式組件 ---
+        function App() {
+            const [user, setUser] = useState(null);
+            const [familyCode, setFamilyCode] = useState(localStorage.getItem('familyCode') || '');
+            const [currentView, setCurrentView] = useState(familyCode ? 'dashboard' : 'login');
+            const [items, setItems] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [selectedLocation, setSelectedLocation] = useState(null);
+            const [editingItem, setEditingItem] = useState(null);
+            const [keyword, setKeyword] = useState('');
 
-        window.saveInitCode = () => {
-            const code = document.getElementById('initCode').value.trim().toUpperCase();
-            if (code.length < 2) return alert("代碼太短囉！");
-            familyCode = code;
-            localStorage.setItem('familyCode', familyCode);
-            document.getElementById('welcomePage').classList.add('hidden');
-            initApp();
-        };
+            // 登入
+            useEffect(() => {
+                signInAnonymously(auth).catch(console.error);
+                onAuthStateChanged(auth, setUser);
+            }, []);
 
-        function initApp() {
-            document.getElementById('topHeader').classList.remove('hidden');
-            document.getElementById('navBar').classList.remove('hidden');
-            document.getElementById('familyBadge').innerText = `群組：${familyCode}`;
-            startListening();
-            showPage('dashboard');
-        }
-
-        function startListening() {
-            if (unsubscribe) unsubscribe();
-            const itemsRef = collection(db, 'artifacts', 'family-inventory', 'public', 'data', `list_${familyCode}`);
-            unsubscribe = onSnapshot(query(itemsRef), (snapshot) => {
-                items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                if (window.currentPage === 'dashboard') renderDashboard();
-                else if (window.currentPage === 'list') renderList(window.currentFilter);
-            });
-        }
-
-        window.showPage = (page, params = {}) => {
-            window.currentPage = page;
-            const container = document.getElementById('app');
-            container.innerHTML = '';
-            
-            if (page === 'dashboard') renderDashboard();
-            else if (page === 'list') renderList(params.filterLocation || '全部');
-            else if (page === 'add') renderAddForm();
-            else if (page === 'settings') renderSettings();
-
-            // 導覽列變色
-            document.querySelectorAll('.nav-item').forEach((btn, i) => {
-                const targets = ['dashboard', 'add', 'list'];
-                btn.classList.toggle('text-[#A4907C]', targets[i] === page);
-                btn.classList.toggle('text-[#B0A395]', targets[i] !== page);
-            });
-        };
-
-        // --- 核心：主儀表板 ---
-        function renderDashboard() {
-            const container = document.getElementById('app');
-            const summary = locations.map(loc => {
-                const locItems = items.filter(i => i.location === loc);
-                const expiredCount = locItems.filter(i => getExpiryStatus(i.expiryDate) === 'expired').length;
-                const warningCount = locItems.filter(i => getExpiryStatus(i.expiryDate) === 'warning').length;
-                return { name: loc, count: locItems.length, expiredCount, warningCount };
-            });
-
-            let html = `<h2 class="font-bold text-xl mb-4 flex items-center gap-2">📍 儲放空間總覽</h2><div class="grid grid-cols-1 gap-4">`;
-            summary.forEach(loc => {
-                html += `
-                <div onclick="showPage('list', {filterLocation: '${loc.name}'})" class="dashboard-card flex justify-between items-center">
-                    <div>
-                        <h3 class="font-bold text-lg text-[#5C4D3C]">${loc.name}</h3>
-                        <p class="text-sm text-[#A4907C]">總計 ${loc.count} 件物品</p>
-                    </div>
-                    <div class="flex flex-col items-end gap-1">
-                        ${loc.expiredCount > 0 ? `<span class="badge-danger">⚠ ${loc.expiredCount} 件過期</span>` : ''}
-                        ${loc.warningCount > 0 ? `<span class="badge-warning">⏳ ${loc.warningCount} 件即將過期</span>` : ''}
-                        <span class="text-xl">❯</span>
-                    </div>
-                </div>`;
-            });
-            container.innerHTML = html + `</div>`;
-        }
-
-        // --- 核心：篩選後的物品列表 ---
-        function renderList(filter) {
-            window.currentFilter = filter;
-            const container = document.getElementById('app');
-            const displayItems = filter === '全部' ? items : items.filter(i => i.location === filter);
-            
-            let html = `
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="font-bold text-xl">${filter} 清單</h2>
-                <select onchange="showPage('list', {filterLocation: this.value})" class="bg-white border rounded-lg p-1 text-sm font-bold">
-                    <option value="全部" ${filter==='全部'?'selected':''}>全部區域</option>
-                    ${locations.map(l => `<option value="${l}" ${filter===l?'selected':''}>${l}</option>`).join('')}
-                </select>
-            </div>`;
-
-            if (displayItems.length === 0) {
-                html += `<div class="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-[#E8DFCE]"><p class="text-[#A4907C] font-bold">這裡還沒有東西喔！</p></div>`;
-            } else {
-                html += `<div class="space-y-3">`;
-                displayItems.forEach(item => {
-                    const status = getExpiryStatus(item.expiryDate);
-                    const statusUI = status === 'expired' ? 'border-red-400 bg-red-50' : (status === 'warning' ? 'border-orange-400 bg-orange-50' : 'border-[#E8DFCE]');
-                    html += `
-                    <div class="bg-white rounded-2xl p-4 border-l-8 ${statusUI} shadow-sm flex items-center gap-4">
-                        <div class="w-14 h-14 bg-[#F5EFE6] rounded-xl flex-shrink-0 overflow-hidden flex items-center justify-center text-2xl">
-                            ${item.image ? `<img src="${item.image}" class="w-full h-full object-cover">` : item.category.substring(0,2)}
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <h4 class="font-bold text-base truncate">${item.name}</h4>
-                            <div class="flex items-center gap-3 mt-1">
-                                <span class="text-xs font-bold text-[#A4907C]">數量: ${item.quantity}</span>
-                                <span class="text-[10px] text-[#8E7860] bg-[#FAF8F5] px-2 py-0.5 rounded border border-[#E8DFCE]">${item.location}</span>
-                            </div>
-                            <p class="text-[10px] mt-1 ${status==='expired'?'text-red-500 font-bold':''}">${item.expiryDate ? '📅 到期: '+item.expiryDate : '未設定效期'}</p>
-                        </div>
-                        <div class="flex flex-col gap-2">
-                            <button onclick="deleteItem('${item.id}', '${item.name}')" class="text-red-300">✕</button>
-                        </div>
-                    </div>`;
-                });
-                html += `</div>`;
-            }
-            container.innerHTML = html;
-        }
-
-        // --- 核心：專業新增頁面 ---
-        function renderAddForm() {
-            const container = document.getElementById('app');
-            currentImage = '';
-            selectedCategory = '🍚食物';
-            container.innerHTML = `
-            <div class="bg-white rounded-[32px] p-6 shadow-xl border border-[#E8DFCE] space-y-6 mb-10">
-                <h2 class="text-center font-bold text-xl text-[#8E7860]">📝 新生物資紀錄</h2>
-                
-                <div id="scanBox" class="hidden mb-4 border-4 border-dashed border-[#D4C4B7] rounded-3xl overflow-hidden"><div id="reader"></div></div>
-                <div class="flex gap-2">
-                    <button onclick="startScan()" class="flex-1 bg-[#FAF8F5] border-2 border-[#D4C4B7] p-3 rounded-2xl flex flex-col items-center">
-                        <span class="text-2xl">🔍</span><span class="text-[11px] font-bold">條碼掃描</span>
-                    </button>
-                    <button onclick="document.getElementById('camInput').click()" class="flex-1 bg-[#FAF8F5] border-2 border-[#D4C4B7] p-3 rounded-2xl flex flex-col items-center">
-                        <span id="camIcon" class="text-2xl">📷</span><span class="text-[11px] font-bold">拍照上傳</span>
-                    </button>
-                    <input type="file" id="camInput" accept="image/*" capture="environment" class="hidden" onchange="previewImg(this)">
-                </div>
-
-                <div class="space-y-5">
-                    <div><label class="input-label">物品名稱 (必填)</label><input type="text" id="itemName" placeholder="例如：林鳳營鮮乳" class="form-input"></div>
-                    
-                    <div>
-                        <label class="input-label">存放地點 (必填)</label>
-                        <select id="itemLocation" class="form-input">
-                            ${locations.map(loc => `<option value="${loc}">${loc}</option>`).join('')}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="input-label">物品分類 (必填)</label>
-                        <div class="grid grid-cols-1 gap-2">
-                            ${categories.map(c => `
-                                <button onclick="selectCat('${c.id}')" id="cat-${c.id}" class="category-btn ${c.id===selectedCategory?'active':''}">
-                                    <span class="font-bold text-sm">${c.label}</span>
-                                    <span class="text-[10px] text-[#A4907C] ml-2">➡️ ${c.sub}</span>
-                                </button>
-                            `).join('')}
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-3">
-                        <div><label class="input-label">數量 (必填)</label><input type="text" id="itemQty" value="1" class="form-input text-center font-bold"></div>
-                        <div><label class="input-label">備註</label><input type="text" id="itemNote" placeholder="例如：買一送一" class="form-input"></div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-3">
-                        <div><label class="input-label">購入日</label><input type="date" id="pDate" class="form-input text-sm"></div>
-                        <div><label class="input-label">到期日</label><input type="date" id="eDate" class="form-input text-sm"></div>
-                    </div>
-
-                    <button onclick="saveItem()" id="saveBtn" class="btn-primary text-lg shadow-lg mt-4">儲存到雲端 ☁️</button>
-                </div>
-            </div>`;
-        }
-
-        function renderSettings() {
-            const container = document.getElementById('app');
-            container.innerHTML = `
-            <div class="space-y-4">
-                <div class="dashboard-card">
-                    <h3 class="font-bold text-[#8E7860] mb-4">🏠 家庭群組設定</h3>
-                    <p class="text-sm mb-4">目前同步代碼：<span class="font-bold text-[#4A3F35]">${familyCode}</span></p>
-                    <input type="text" id="newCode" placeholder="更換新代碼" class="form-input text-center font-bold uppercase mb-4">
-                    <button onclick="updateCode()" class="btn-primary">切換同步群組</button>
-                </div>
-                <div class="dashboard-card">
-                    <h3 class="font-bold text-[#8E7860] mb-4">💾 資料備份</h3>
-                    <div class="flex gap-2">
-                        <button onclick="exportData()" class="flex-1 bg-[#F5EFE6] p-4 rounded-2xl font-bold text-sm">📥 下載備份</button>
-                        <button onclick="document.getElementById('impInp').click()" class="flex-1 bg-[#F5EFE6] p-4 rounded-2xl font-bold text-sm">📤 導入備份</button>
-                    </div>
-                    <input type="file" id="impInp" accept=".json" class="hidden" onchange="importData(this)">
-                </div>
-            </div>`;
-        }
-
-        // --- 功能邏輯 ---
-        window.selectCat = (id) => {
-            selectedCategory = id;
-            document.querySelectorAll('.category-btn').forEach(b => b.classList.toggle('active', b.id === `cat-${id}`));
-        };
-
-        window.previewImg = (input) => {
-            const file = input.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => { currentImage = e.target.result; document.getElementById('camIcon').innerText = "✅"; };
-            reader.readAsDataURL(file);
-        };
-
-        window.startScan = () => {
-            const box = document.getElementById('scanBox');
-            box.classList.remove('hidden');
-            const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-            scanner.render(async (text) => {
-                scanner.clear(); box.classList.add('hidden');
-                try {
-                    const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${text}.json`);
-                    const data = await res.json();
-                    if(data.status === 1) {
-                        document.getElementById('itemName').value = data.product.product_name || "";
-                        alert("已找到商品：" + data.product.product_name);
-                    }
-                } catch(e) {}
-            });
-        };
-
-        window.saveItem = async () => {
-            const name = document.getElementById('itemName').value.trim();
-            if (!name) return alert("物品名稱一定要寫喔！");
-            const btn = document.getElementById('saveBtn');
-            btn.disabled = true; btn.innerText = "儲存中...";
-            try {
-                await addDoc(collection(db, 'artifacts', 'family-inventory', 'public', 'data', `list_${familyCode}`), {
-                    name, location: document.getElementById('itemLocation').value,
-                    category: selectedCategory, quantity: document.getElementById('itemQty').value,
-                    expiryDate: document.getElementById('eDate').value, purchaseDate: document.getElementById('pDate').value,
-                    note: document.getElementById('itemNote').value, image: currentImage, createdAt: Date.now()
-                });
-                showPage('dashboard');
-            } catch (e) { alert("儲存失敗！"); btn.disabled = false; btn.innerText = "儲存到雲端 ☁️"; }
-        };
-
-        window.deleteItem = async (id, name) => {
-            if (confirm(`確定刪除「${name}」？`)) await deleteDoc(doc(db, 'artifacts', 'family-inventory', 'public', 'data', `list_${familyCode}`, id));
-        };
-
-        window.updateCode = () => {
-            const c = document.getElementById('newCode').value.trim().toUpperCase();
-            if (c) { familyCode = c; localStorage.setItem('familyCode', c); location.reload(); }
-        };
-
-        window.exportData = () => {
-            const blob = new Blob([JSON.stringify(items)], {type: "application/json"});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `backup_${familyCode}.json`; a.click();
-        };
-
-        window.importData = (input) => {
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const data = JSON.parse(e.target.result);
-                if (confirm(`即將導入 ${data.length} 筆資料到「${familyCode}」，是否繼續？`)) {
-                    for (const i of data) {
-                        const {id, ...payload} = i;
-                        await addDoc(collection(db, 'artifacts', 'family-inventory', 'public', 'data', `list_${familyCode}`), payload);
-                    }
-                    alert("導入完成！"); showPage('dashboard');
+            // 監聽資料
+            useEffect(() => {
+                if (!user || !familyCode || currentView === 'login') {
+                    setLoading(false);
+                    return;
                 }
-            };
-            reader.readAsText(input.files[0]);
-        };
+                const itemsRef = collection(db, 'artifacts', appIdPrefix, 'public', `family_${familyCode}`);
+                const unsubscribe = onSnapshot(itemsRef, (snapshot) => {
+                    setItems(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+                    setLoading(false);
+                });
+                return () => unsubscribe();
+            }, [user, familyCode, currentView]);
 
-        function getExpiryStatus(date) {
-            if (!date) return 'ok';
-            const diff = (new Date(date) - new Date().setHours(0,0,0,0)) / 86400000;
-            if (diff < 0) return 'expired';
-            if (diff <= 7) return 'warning';
-            return 'ok';
+            // 過期判斷
+            const getStatus = (date) => {
+                if (!date) return { text: '正常', color: 'text-green-700', bg: 'bg-green-100', icon: 'check' };
+                const days = Math.ceil((new Date(date) - new Date().setHours(0,0,0,0)) / 86400000);
+                if (days < 0) return { text: '已過期', color: 'text-red-700', bg: 'bg-red-100', icon: 'alert' };
+                if (days <= 3) return { text: `剩${days}天`, color: 'text-orange-700', bg: 'bg-orange-100', icon: 'clock' };
+                return { text: '正常', color: 'text-green-700', bg: 'bg-green-100', icon: 'check' };
+            };
+
+            // 儲存
+            const saveItem = async (data) => {
+                const itemsRef = collection(db, 'artifacts', appIdPrefix, 'public', `family_${familyCode}`);
+                if (data.id) {
+                    const { id, ...rest } = data;
+                    await updateDoc(doc(itemsRef, id), rest);
+                } else {
+                    await addDoc(itemsRef, { ...data, createdAt: new Date().toISOString() });
+                }
+                setCurrentView(selectedLocation ? 'location_detail' : 'dashboard');
+            };
+
+            // 備份匯出
+            const doExport = () => {
+                const blob = new Blob([JSON.stringify(items)], { type: "application/json" });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `庫存備份_${familyCode}.json`;
+                a.click();
+            };
+
+            // --- 介面元件 ---
+            const Nav = () => (
+                <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E8DCC8] flex justify-around p-2 h-20 items-center z-50">
+                    <button onClick={() => setCurrentView('dashboard')} className={`flex flex-col items-center ${currentView==='dashboard'?'text-[#8B6E52]':'text-gray-400'}`}>
+                        <i data-lucide="home"></i><span className="text-xs mt-1">首頁</span>
+                    </button>
+                    <button onClick={() => { setEditingItem(null); setCurrentView('form'); }} className="bg-[#8B6E52] text-white p-4 rounded-full -mt-10 shadow-lg border-4 border-white">
+                        <i data-lucide="plus"></i>
+                    </button>
+                    <button onClick={() => setCurrentView('search')} className={`flex flex-col items-center ${currentView==='search'?'text-[#8B6E52]':'text-gray-400'}`}>
+                        <i data-lucide="search"></i><span className="text-xs mt-1">搜尋</span>
+                    </button>
+                </div>
+            );
+
+            // 重新渲染 Lucide 圖示
+            useEffect(() => { lucide.createIcons(); });
+
+            if (currentView === 'login') return (
+                <div className="min-h-screen flex items-center justify-center p-6 bg-[#F5F0EA]">
+                    <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-[#E8DCC8] w-full max-w-sm text-center">
+                        <div className="text-6xl mb-4">🏠</div>
+                        <h1 className="text-2xl font-bold text-[#5C4532] mb-6">家庭庫存代碼</h1>
+                        <input type="text" id="c" placeholder="例如：happyhome" className="w-full bg-[#F9F6F0] border-2 border-[#E8DCC8] rounded-2xl p-4 text-center text-xl font-bold mb-4" />
+                        <button onClick={() => {
+                            const val = document.getElementById('c').value;
+                            if(val) { localStorage.setItem('familyCode', val); setFamilyCode(val); setCurrentView('dashboard'); }
+                        }} className="w-full bg-[#8B6E52] text-white font-bold py-4 rounded-2xl">進入同步系統</button>
+                    </div>
+                </div>
+            );
+
+            if (currentView === 'dashboard') return (
+                <div className="p-4 pb-24 space-y-4">
+                    <div className="flex justify-between items-center bg-[#D9CDBF] p-4 rounded-2xl text-[#5C4532]">
+                        <div><h2 className="font-bold">代碼：{familyCode}</h2><p className="text-xs">跨設備自動同步中</p></div>
+                        <button onClick={() => setCurrentView('settings')}><i data-lucide="settings"></i></button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        {LOCATIONS.map(l => (
+                            <button key={l.id} onClick={() => { setSelectedLocation(l); setCurrentView('location_detail'); }} className="bg-white p-4 rounded-3xl border border-[#E8DCC8] text-left relative aspect-square flex flex-col justify-between shadow-sm active:scale-95">
+                                <div><div className="text-4xl mb-1">{l.icon}</div><h3 className="font-bold text-[#5C4532]">{l.name}</h3></div>
+                                <div className="text-[#8B6E52] text-xl font-bold">{items.filter(i=>i.location===l.id).length} 項</div>
+                            </button>
+                        ))}
+                    </div>
+                    <Nav />
+                </div>
+            );
+
+            if (currentView === 'location_detail') return (
+                <div className="p-4 pb-24 space-y-4">
+                    <header className="flex items-center gap-3 mb-4">
+                        <button onClick={()=>setCurrentView('dashboard')} className="p-2 bg-[#D9CDBF] rounded-full"><i data-lucide="chevron-left"></i></button>
+                        <h2 className="text-xl font-bold">{selectedLocation.icon} {selectedLocation.name}</h2>
+                    </header>
+                    {items.filter(i=>i.location===selectedLocation.id).map(item => {
+                        const s = getStatus(item.expiryDate);
+                        return (
+                            <div key={item.id} className="bg-white p-4 rounded-2xl border border-[#E8DCC8] flex items-center gap-4 shadow-sm">
+                                <div className="w-14 h-14 bg-[#F5EBE1] rounded-xl flex items-center justify-center text-3xl overflow-hidden">
+                                    {item.img ? <img src={item.img} className="w-full h-full object-cover" /> : '📦'}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-bold truncate">{item.name} {item.other && <span className="text-xs text-gray-400">({item.other})</span>}</h3>
+                                    <div className={`inline-block px-2 py-0.5 rounded text-xs mt-1 ${s.bg} ${s.color}`}>x{item.qty} · {item.expiryDate || '無效期'} {s.text}</div>
+                                </div>
+                                <button onClick={()=>{setEditingItem(item); setCurrentView('form');}} className="text-[#8B6E52] p-2 bg-[#F5EBE1] rounded-xl"><i data-lucide="edit-3"></i></button>
+                            </div>
+                        );
+                    })}
+                    <Nav />
+                </div>
+            );
+
+            if (currentView === 'form') return (
+                <div className="p-6 pb-24 bg-white min-h-screen">
+                    <h2 className="text-2xl font-bold mb-6">{editingItem?.id ? '編輯' : '新增'}物品</h2>
+                    <div className="space-y-4">
+                        <div className="flex justify-center">
+                            <button onClick={()=>document.getElementById('f').click()} className="w-32 h-32 bg-[#F5F0EA] rounded-3xl border-2 border-dashed border-[#8B6E52] flex flex-col items-center justify-center overflow-hidden">
+                                {editingItem?.img ? <img src={editingItem.img} className="w-full h-full object-cover" /> : <><i data-lucide="camera"></i><span className="text-xs mt-1">拍照片</span></>}
+                            </button>
+                            <input type="file" id="f" accept="image/*" capture="environment" className="hidden" onChange={async (e)=>{
+                                const reader = new FileReader();
+                                reader.onload = (re) => {
+                                    const img = new Image();
+                                    img.onload = () => {
+                                        const canvas = document.createElement('canvas');
+                                        const ctx = canvas.getContext('2d');
+                                        canvas.width = 400; canvas.height = (img.height/img.width)*400;
+                                        ctx.drawImage(img, 0, 0, 400, canvas.height);
+                                        setEditingItem({...editingItem, img: canvas.toDataURL('image/jpeg', 0.6)});
+                                    };
+                                    img.src = re.target.result;
+                                };
+                                reader.readAsDataURL(e.target.files[0]);
+                            }} />
+                        </div>
+                        <div><label className="font-bold">名稱*</label><input type="text" id="n" defaultValue={editingItem?.name} className="w-full border-2 border-[#E8DCC8] rounded-xl p-3 mt-1" /></div>
+                        <div><label className="font-bold">數量*</label><input type="number" id="q" defaultValue={editingItem?.qty || 1} className="w-full border-2 border-[#E8DCC8] rounded-xl p-3 mt-1" /></div>
+                        <div><label className="font-bold">存放地點*</label>
+                            <select id="l" defaultValue={editingItem?.location || 'fridge'} className="w-full border-2 border-[#E8DCC8] rounded-xl p-3 mt-1" onChange={(e)=>setEditingItem({...editingItem, location: e.target.value})}>
+                                {LOCATIONS.map(l=><option key={l.id} value={l.id}>{l.icon} {l.name}</option>)}
+                            </select>
+                        </div>
+                        {(editingItem?.location === 'other' || document.getElementById('l')?.value === 'other') && 
+                            <div><label className="font-bold">自訂地點備註*</label><input type="text" id="o" defaultValue={editingItem?.other} className="w-full border-2 border-[#E8DCC8] rounded-xl p-3 mt-1" /></div>
+                        }
+                        <div><label className="font-bold">到期日</label><input type="date" id="d" defaultValue={editingItem?.expiryDate} className="w-full border-2 border-[#E8DCC8] rounded-xl p-3 mt-1" /></div>
+                        <button onClick={()=>{
+                            const data = {
+                                ...editingItem,
+                                name: document.getElementById('n').value,
+                                qty: Number(document.getElementById('q').value),
+                                location: document.getElementById('l').value,
+                                other: document.getElementById('o')?.value || '',
+                                expiryDate: document.getElementById('d').value,
+                            };
+                            if(!data.name) return alert('請填寫名稱');
+                            saveItem(data);
+                        }} className="w-full bg-[#8B6E52] text-white py-4 rounded-2xl font-bold text-lg mt-4 shadow-md">確認儲存</button>
+                        {editingItem?.id && <button onClick={()=> { if(confirm('確定刪除?')) deleteDoc(doc(db, 'artifacts', appIdPrefix, 'public', `family_${familyCode}`, editingItem.id)).then(()=>setCurrentView('dashboard')) }} className="w-full text-red-500 py-2">刪除物品</button>}
+                        <button onClick={()=>setCurrentView('dashboard')} className="w-full text-gray-400 py-2">取消離開</button>
+                    </div>
+                </div>
+            );
+
+            if (currentView === 'settings') return (
+                <div className="p-6 bg-[#F5F0EA] min-h-screen space-y-6">
+                    <header className="flex items-center gap-3"><button onClick={()=>setCurrentView('dashboard')} className="p-2 bg-[#D9CDBF] rounded-full"><i data-lucide="chevron-left"></i></button><h2 className="text-xl font-bold">設定與備份</h2></header>
+                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-[#E8DCC8] space-y-4">
+                        <button onClick={doExport} className="w-full bg-[#8B6E52] text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2"><i data-lucide="download"></i>匯出備份檔</button>
+                        <button onClick={()=> { localStorage.removeItem('familyCode'); location.reload(); }} className="w-full bg-red-100 text-red-700 py-4 rounded-xl font-bold">登出 / 切換家庭代碼</button>
+                    </div>
+                </div>
+            );
+
+            if (currentView === 'search') return (
+                <div className="p-4 pb-24 min-h-screen bg-[#F5F0EA]">
+                    <input type="text" placeholder="搜尋物品..." className="w-full border-2 border-[#E8DCC8] rounded-2xl p-4 mb-4" onChange={e=>setKeyword(e.target.value)} />
+                    <div className="space-y-3">
+                        {items.filter(i=>i.name.includes(keyword)).map(item=>(
+                            <div key={item.id} className="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm">
+                                <div><h3 className="font-bold">{item.name}</h3><p className="text-xs text-gray-400">{LOCATIONS.find(l=>l.id===item.location).name} · x{item.qty}</p></div>
+                                <button onClick={()=>{setEditingItem(item); setCurrentView('form');}} className="text-[#8B6E52]"><i data-lucide="edit"></i></button>
+                            </div>
+                        ))}
+                    </div>
+                    <Nav />
+                </div>
+            );
         }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
