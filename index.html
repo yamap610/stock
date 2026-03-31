@@ -3,44 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>我們的家 - 雲端庫存</title>
-    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
+    <title>家庭雲端庫存系統</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body { font-family: 'M PLUS Rounded 1c', sans-serif; background-color: #FAF8F5; color: #5C4D3C; -webkit-tap-highlight-color: transparent; }
-        .card-shadow { box-shadow: 0 4px 15px -3px rgba(0,0,0,0.05); }
-        #reader video { border-radius: 20px !important; }
-        #reader__dashboard_section_csr button { background: #A4907C !important; color: white !important; padding: 10px 20px !important; border-radius: 12px !important; border: none !important; font-weight: bold !important; margin: 10px auto !important; }
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #FDFBF9; color: #4A3F35; -webkit-tap-highlight-color: transparent; }
+        .input-label { font-size: 14px; font-weight: bold; color: #8E7860; margin-left: 4px; margin-bottom: 4px; display: block; }
+        .form-input { width: 100%; padding: 14px; border: 2px solid #E8DFCE; border-radius: 16px; outline: none; background: #FFFFFF; transition: border 0.2s; font-size: 16px; }
+        .form-input:focus { border-color: #A4907C; }
+        .card-shadow { box-shadow: 0 8px 20px -4px rgba(164, 144, 124, 0.15); }
+        .btn-primary { background: #A4907C; color: white; font-weight: bold; padding: 16px; border-radius: 20px; width: 100%; transition: transform 0.1s; }
+        .btn-primary:active { transform: scale(0.98); }
+        .category-btn { border: 2px solid #E8DFCE; border-radius: 16px; padding: 12px; text-align: left; transition: all 0.2s; background: white; }
+        .category-btn.active { border-color: #A4907C; background: #FAF8F5; box-shadow: inset 0 0 0 1px #A4907C; }
+        #reader video { border-radius: 16px !important; }
     </style>
 </head>
-<body class="pb-24">
+<body class="pb-28">
 
-    <header class="bg-[#D4C4B7] p-4 sticky top-0 z-50 rounded-b-3xl shadow-sm flex justify-between items-center max-w-md mx-auto">
-        <h1 class="text-xl font-bold flex items-center gap-2">📦 我們的家</h1>
-        <div id="displayFamilyCode" class="text-xs bg-[#F5EFE6] px-3 py-1 rounded-full font-bold border border-[#C4B4A7]">群組: --</div>
+    <!-- 頂部標題 -->
+    <header class="bg-[#D4C4B7] p-4 sticky top-0 z-50 rounded-b-[32px] shadow-md flex justify-between items-center max-w-md mx-auto">
+        <h1 class="text-xl font-bold text-white flex items-center gap-2">📦 我們的家</h1>
+        <div id="familyBadge" class="text-[10px] bg-white/30 text-white px-3 py-1 rounded-full font-bold backdrop-blur-sm">--</div>
     </header>
 
-    <main id="app" class="p-4 max-w-md mx-auto min-h-[70vh]">
-        <div id="loading" class="text-center py-20 text-[#A4907C]">
-            <div class="animate-spin inline-block w-8 h-8 border-4 border-[#D4C4B7] border-t-transparent rounded-full mb-4"></div>
-            <p class="text-lg font-bold">正在連線雲端...</p>
+    <!-- 引導頁 (第一次進入或未設定代碼時顯示) -->
+    <div id="welcomePage" class="hidden fixed inset-0 z-[100] bg-[#FAF8F5] flex items-center justify-center p-6">
+        <div class="w-full max-w-sm text-center">
+            <div class="text-7xl mb-6 text-[#D4C4B7]">🏠</div>
+            <h2 class="text-2xl font-bold mb-2">歡迎使用雲端庫存</h2>
+            <p class="text-[#A4907C] mb-8">請輸入家庭同步代碼以進入</p>
+            <input type="text" id="initCode" placeholder="例如：WANG123" class="w-full p-5 border-2 border-[#D4C4B7] rounded-3xl text-center text-2xl font-bold tracking-widest uppercase mb-4 outline-none">
+            <button onclick="saveInitCode()" class="btn-primary text-lg">開始同步資料</button>
         </div>
-    </main>
+    </div>
 
-    <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/90 backdrop-blur-md border-t border-[#E8DFCE] flex justify-around p-3 rounded-t-[32px] shadow-[0_-4px_15px_rgba(0,0,0,0.03)] z-50">
-        <button onclick="showPage('list')" class="nav-btn flex flex-col items-center p-2 w-1/3 text-[#B0A395]">
-            <span class="text-2xl">📋</span>
-            <span class="text-[11px] mt-1 font-bold">清單</span>
+    <!-- 主要內容區 -->
+    <main id="app" class="p-4 max-w-md mx-auto min-h-[70vh]"></main>
+
+    <!-- 底部導覽列 -->
+    <nav id="navBar" class="hidden fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-[#E8DFCE] flex justify-around p-3 rounded-t-[32px] shadow-lg z-50">
+        <button onclick="showPage('list')" class="nav-item flex flex-col items-center p-2 w-1/4">
+            <span class="text-2xl">📋</span><span class="text-[11px] mt-1 font-bold">庫存清單</span>
         </button>
-        <button onclick="showPage('add')" class="nav-btn flex flex-col items-center p-2 w-1/3">
-            <div class="bg-[#A4907C] text-white p-3 rounded-2xl -mt-8 shadow-lg active:scale-95 transition-transform">
-                <span class="text-2xl">＋</span>
-            </div>
-            <span class="text-[11px] mt-1 font-bold text-[#8E7860]">新增</span>
+        <button onclick="showPage('add')" class="nav-item flex flex-col items-center p-2 w-1/4">
+            <div class="bg-[#A4907C] text-white p-3 rounded-2xl -mt-10 shadow-lg"><span class="text-2xl">＋</span></div>
+            <span class="text-[11px] mt-1 font-bold">新增物品</span>
         </button>
-        <button onclick="showPage('settings')" class="nav-btn flex flex-col items-center p-2 w-1/3 text-[#B0A395]">
-            <span class="text-2xl">⚙️</span>
-            <span class="text-[11px] mt-1 font-bold">同步</span>
+        <button onclick="showPage('settings')" class="nav-item flex flex-col items-center p-2 w-1/4">
+            <span class="text-2xl">⚙️</span><span class="text-[11px] mt-1 font-bold">系統同步</span>
         </button>
     </nav>
 
@@ -49,7 +61,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- 已經填入你提供的專屬金鑰 ---
+        // Firebase Config (已帶入妳提供的資訊)
         const firebaseConfig = {
             apiKey: "AIzaSyDSKX93lBA2H9fheiDA_M3Wc3nOHYGpGbo",
             authDomain: "stock-a5e10.firebaseapp.com",
@@ -64,18 +76,46 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        let familyCode = localStorage.getItem('familyCode') || 'HOME123';
+        let familyCode = localStorage.getItem('familyCode');
         let items = [];
         let unsubscribe = null;
+        let selectedCategory = '🍚食物';
+        let currentImage = '';
 
+        // 分類定義
+        const categories = [
+            { id: '🥩生鮮', label: '🥩 生鮮', sub: '如：肉、魚、蛋、蔬菜' },
+            { id: '🍚食物', label: '🍚 食物', sub: '如：熟食、水果、麵包' },
+            { id: '🥤飲品', label: '🥤 飲品', sub: '如：牛奶、果汁、飲料' },
+            { id: '🧂醬料', label: '🧂 醬料', sub: '如：醬油、沙拉醬、調味料' },
+            { id: '❄️冷凍', label: '❄️ 冷凍', sub: '如：冷凍食品、冷凍肉' }
+        ];
+
+        // 初始化驗證
         onAuthStateChanged(auth, async (user) => {
             if (!user) await signInAnonymously(auth);
-            else {
-                updateFamilyCodeDisplay();
-                startListening();
-                showPage('list');
+            if (!familyCode) {
+                document.getElementById('welcomePage').classList.remove('hidden');
+            } else {
+                initializeAppContent();
             }
         });
+
+        window.saveInitCode = () => {
+            const code = document.getElementById('initCode').value.trim().toUpperCase();
+            if (code.length < 3) return alert("請輸入至少3個字元的代碼");
+            familyCode = code;
+            localStorage.setItem('familyCode', familyCode);
+            document.getElementById('welcomePage').classList.add('hidden');
+            initializeAppContent();
+        };
+
+        function initializeAppContent() {
+            document.getElementById('navBar').classList.remove('hidden');
+            document.getElementById('familyBadge').innerText = `群組: ${familyCode}`;
+            startListening();
+            showPage('list');
+        }
 
         function startListening() {
             if (unsubscribe) unsubscribe();
@@ -84,91 +124,291 @@
                 items = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
                 items.sort((a, b) => (new Date(a.expiryDate || '9999') - new Date(b.expiryDate || '9999')));
                 if (window.currentPage === 'list') renderList();
-            }, (err) => alert("連線錯誤，請確認 Rules 已發佈！"));
+            });
         }
 
         window.showPage = (page) => {
             window.currentPage = page;
+            const container = document.getElementById('app');
+            container.innerHTML = '';
+            
             if (page === 'list') renderList();
             else if (page === 'add') renderAddForm();
             else if (page === 'settings') renderSettings();
+
+            document.querySelectorAll('.nav-item').forEach((btn, i) => {
+                const target = ['list', 'add', 'settings'][i];
+                btn.classList.toggle('text-[#A4907C]', target === page);
+                btn.classList.toggle('text-[#B0A395]', target !== page);
+            });
         };
 
+        // --- 渲染清單 ---
         function renderList() {
             const container = document.getElementById('app');
             if (items.length === 0) {
-                container.innerHTML = `<div class="bg-white rounded-[40px] p-12 text-center border border-[#F0EBE1] mt-10 card-shadow"><div class="text-6xl mb-4">🏠</div><h2 class="text-xl font-bold text-[#7A6A58]">目前空空的</h2><p class="text-[#A4907C] text-sm mt-2">點擊＋開始記錄吧！</p></div>`;
+                container.innerHTML = `<div class="bg-white rounded-[40px] p-12 text-center border border-[#F0EBE1] mt-10 card-shadow"><div class="text-6xl mb-4">🏠</div><h2 class="text-xl font-bold text-[#7A6A58]">清單目前空空的</h2><p class="text-[#A4907C] mt-2">點擊下方的「＋」來新增第一筆物品吧！</p></div>`;
                 return;
             }
-            let html = `<div class="grid gap-3">`;
+            let html = `<div class="grid gap-4">`;
             items.forEach(item => {
-                const status = getExpiryInfo(item.expiryDate);
-                html += `<div class="bg-white rounded-[24px] p-3 card-shadow border-l-[10px] ${status.border} flex items-center gap-3">
-                    <div class="w-16 h-16 rounded-2xl bg-[#FAF8F5] flex items-center justify-center text-3xl border border-[#E8DFCE] overflow-hidden shrink-0">${item.image ? `<img src="${item.image}" class="w-full h-full object-cover">` : getEmoji(item.category)}</div>
-                    <div class="flex-1 min-w-0"><h3 class="font-bold text-[#5C4D3C] truncate">${item.name}</h3><p class="text-[12px] text-[#A4907C]">數:${item.quantity}</p><span class="text-[10px] font-bold px-2 py-0.5 rounded-lg ${status.bg} ${status.text}">${status.label}</span></div>
-                    <button onclick="deleteItem('${item.id}', '${item.name}')" class="text-[#D69696] bg-[#FDF6F6] w-10 h-10 rounded-full flex items-center justify-center">✕</button>
+                const expiryInfo = getExpiryInfo(item.expiryDate);
+                html += `
+                <div class="bg-white rounded-[24px] p-4 card-shadow border border-[#E8DFCE] flex items-center gap-4">
+                    <div class="w-16 h-16 rounded-2xl bg-[#F5EFE6] flex items-center justify-center text-3xl shrink-0 overflow-hidden">
+                        ${item.image ? `<img src="${item.image}" class="w-full h-full object-cover">` : item.category.substring(0, 2)}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                             <h3 class="font-bold text-[#4A3F35] truncate text-lg">${item.name}</h3>
+                             <span class="text-[10px] px-2 py-0.5 bg-[#FAF8F5] border border-[#E8DFCE] rounded text-[#8E7860]">${item.location}</span>
+                        </div>
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <span class="text-xs font-bold text-[#A4907C]">數量: ${item.quantity}</span>
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${expiryInfo.bg} ${expiryInfo.text}">${expiryInfo.label}</span>
+                        </div>
+                        <p class="text-[10px] text-[#B0A395] mt-1 italic">${item.note ? '備註: ' + item.note : ''}</p>
+                    </div>
+                    <button onclick="deleteItem('${item.id}', '${item.name}')" class="bg-red-50 text-red-400 w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-90">✕</button>
                 </div>`;
             });
             container.innerHTML = html + `</div>`;
         }
 
+        // --- 渲染新增頁面 ---
         function renderAddForm() {
             const container = document.getElementById('app');
-            container.innerHTML = `<div class="bg-white rounded-[32px] p-6 card-shadow border border-[#E8DFCE]"><h2 class="font-bold text-[#8E7860] mb-6 text-center">📝 新增紀錄</h2><div id="scannerContainer" class="hidden mb-4 rounded-2xl border-2 border-[#D4C4B7] overflow-hidden"><div id="reader"></div><button onclick="stopScanner()" class="w-full p-2 bg-[#F0EBE1] text-xs">取消掃描</button></div><div class="flex gap-3 mb-6" id="photoButtons"><button onclick="startScanner()" class="flex-1 h-20 bg-[#F5EFE6] rounded-[24px] border-2 border-[#A4907C] flex flex-col items-center justify-center"><span class="text-2xl">🔍</span><span class="text-xs font-bold">條碼</span></button><button onclick="document.getElementById('fileInput').click()" class="flex-1 h-20 bg-[#FAF8F5] rounded-[24px] border-2 border-dashed border-[#D4C4B7] flex flex-col items-center justify-center"><span id="photoPreview" class="text-2xl">📷</span><span class="text-xs font-bold">拍照</span></button><input type="file" id="fileInput" accept="image/*" capture="environment" class="hidden" onchange="previewImage(this)"></div><div class="space-y-4"><input type="text" id="itemName" placeholder="物品名稱" class="w-full p-4 border-2 border-[#E8DFCE] rounded-2xl outline-none bg-[#FAF8F5]"><input type="date" id="expiryDate" class="w-full p-4 border-2 border-[#E8DFCE] rounded-2xl outline-none bg-[#FAF8F5]"><div class="flex items-center gap-6 justify-center bg-[#FAF8F5] p-2 rounded-2xl border border-[#E8DFCE]"><button onclick="adjQty(-1)" class="w-10 h-10 bg-white border border-[#E8DFCE] rounded-xl font-bold">-</button><span id="qtyVal" class="text-xl font-bold">1</span><button onclick="adjQty(1)" class="w-10 h-10 bg-[#D4C4B7] text-white rounded-xl font-bold">+</button></div><button onclick="saveItem()" id="saveBtn" class="w-full bg-[#A4907C] text-white font-bold py-4 rounded-[24px] shadow-md mt-4">📦 儲存到雲端</button></div></div>`;
+            currentImage = '';
+            selectedCategory = '🍚食物';
+            
+            container.innerHTML = `
+            <div class="bg-white rounded-[32px] p-6 card-shadow border border-[#E8DFCE] space-y-6">
+                <h2 class="text-center text-xl font-bold text-[#8E7860]">📝 新增紀錄</h2>
+                
+                <!-- 掃描與拍照區 -->
+                <div id="scannerUI" class="hidden mb-4 border-4 border-dashed border-[#D4C4B7] rounded-3xl overflow-hidden"><div id="reader"></div></div>
+                <div class="flex gap-3" id="mediaBtns">
+                    <button onclick="startScan()" class="flex-1 bg-[#FAF8F5] border-2 border-[#D4C4B7] p-4 rounded-2xl flex flex-col items-center">
+                        <span class="text-2xl">🔍</span><span class="text-xs font-bold">條碼掃描</span>
+                    </button>
+                    <button onclick="document.getElementById('camInput').click()" class="flex-1 bg-[#FAF8F5] border-2 border-[#D4C4B7] p-4 rounded-2xl flex flex-col items-center">
+                        <span id="camIcon" class="text-2xl">📷</span><span class="text-xs font-bold">拍照上傳</span>
+                    </button>
+                    <input type="file" id="camInput" accept="image/*" capture="environment" class="hidden" onchange="previewImg(this)">
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="input-label">物品名稱 (必填)</label>
+                        <input type="text" id="itemName" placeholder="例如：大武山紅蛋" class="form-input">
+                    </div>
+
+                    <div>
+                        <label class="input-label">存放位置 (必填)</label>
+                        <select id="itemLocation" class="form-input">
+                            <option value="冰箱冷藏">冰箱冷藏</option>
+                            <option value="冷凍庫">冷凍庫</option>
+                            <option value="廚房">廚房</option>
+                            <option value="零食區">零食區</option>
+                            <option value="廁所">廁所</option>
+                            <option value="倉庫">倉庫</option>
+                            <option value="其他">其他</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="input-label">物品分類 (必填)</label>
+                        <div class="grid gap-2">
+                            ${categories.map(cat => `
+                                <button onclick="selectCat('${cat.id}')" id="cat-${cat.id}" class="category-btn ${cat.id === selectedCategory ? 'active' : ''}">
+                                    <div class="font-bold text-base">${cat.label}</div>
+                                    <div class="text-[11px] text-[#A4907C]">${cat.sub}</div>
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="input-label">數量 (選填)</label>
+                            <div class="flex items-center bg-[#FAF8F5] border-2 border-[#E8DFCE] rounded-2xl p-1">
+                                <button onclick="adjQty(-1)" class="w-10 h-10 bg-white rounded-xl shadow-sm font-bold">-</button>
+                                <input type="number" id="itemQty" value="1" class="w-full bg-transparent text-center font-bold outline-none">
+                                <button onclick="adjQty(1)" class="w-10 h-10 bg-[#D4C4B7] text-white rounded-xl shadow-sm font-bold">+</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="input-label">備註 (選填)</label>
+                            <input type="text" id="itemNote" placeholder="例如：買一送一" class="form-input">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="input-label">購入日 (選填)</label>
+                            <input type="date" id="purchaseDate" class="form-input">
+                        </div>
+                        <div>
+                            <label class="input-label">到期日 (選填)</label>
+                            <input type="date" id="expiryDate" class="form-input">
+                        </div>
+                    </div>
+
+                    <button onclick="saveItem()" id="saveBtn" class="btn-primary mt-6 text-lg shadow-lg">📦 儲存到雲端庫存</button>
+                </div>
+            </div>`;
         }
 
+        // --- 渲染設定與備份頁面 ---
         function renderSettings() {
             const container = document.getElementById('app');
-            container.innerHTML = `<div class="bg-white rounded-[32px] p-6 card-shadow border border-[#E8DFCE]"><h3 class="font-bold text-[#8E7860] mb-3">🏠 同步代碼</h3><input type="text" id="newFamilyCode" value="${familyCode}" class="w-full p-4 border-2 border-[#D4C4B7] rounded-2xl text-center font-bold tracking-[4px] uppercase mb-4 bg-[#FAF8F5]"><button onclick="changeFamilyCode()" class="w-full bg-[#A4907C] text-white py-4 rounded-2xl font-bold">更新同步</button></div>`;
+            container.innerHTML = `
+            <div class="space-y-6">
+                <div class="bg-white rounded-[32px] p-6 card-shadow border border-[#E8DFCE]">
+                    <h3 class="font-bold text-[#8E7860] mb-4">🏠 家庭同步設定</h3>
+                    <p class="text-[12px] text-[#A4907C] mb-4">目前同步代碼：<span class="text-[#5C4D3C] font-bold">${familyCode}</span></p>
+                    <input type="text" id="newCode" placeholder="更換新代碼" class="form-input text-center font-bold tracking-widest uppercase mb-4">
+                    <button onclick="changeFamilyCode()" class="btn-primary">切換群組</button>
+                </div>
+
+                <div class="bg-white rounded-[32px] p-6 card-shadow border border-[#E8DFCE]">
+                    <h3 class="font-bold text-[#8E7860] mb-4">💾 資料備份功能</h3>
+                    <p class="text-[12px] text-[#A4907C] mb-4">您可以將目前的清單下載備份，或從備份檔還原。</p>
+                    <div class="grid grid-cols-2 gap-4">
+                        <button onclick="exportData()" class="p-4 bg-[#F5EFE6] border border-[#D4C4B7] rounded-2xl font-bold text-sm">📥 下載備份</button>
+                        <button onclick="document.getElementById('importInput').click()" class="p-4 bg-[#FAF8F5] border border-[#D4C4B7] rounded-2xl font-bold text-sm">📤 導入備份</button>
+                    </div>
+                    <input type="file" id="importInput" accept=".json" class="hidden" onchange="importData(this)">
+                </div>
+            </div>`;
         }
 
-        let currentQty = 1;
-        let currentImg = '';
-        let scanner = null;
-        window.adjQty = (v) => { currentQty = Math.max(1, currentQty + v); document.getElementById('qtyVal').innerText = currentQty; };
-        window.previewImage = (input) => {
+        // --- 動作邏輯 ---
+        window.adjQty = (v) => {
+            const input = document.getElementById('itemQty');
+            input.value = Math.max(1, parseInt(input.value) + v);
+        };
+
+        window.selectCat = (id) => {
+            selectedCategory = id;
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.id === `cat-${id}`);
+            });
+        };
+
+        window.previewImg = (input) => {
             const file = input.files[0];
+            if (!file) return;
             const reader = new FileReader();
-            reader.onload = (e) => { currentImg = e.target.result; document.getElementById('photoPreview').innerText = "✅"; };
+            reader.onload = (e) => {
+                currentImage = e.target.result;
+                document.getElementById('camIcon').innerText = "✅";
+            };
             reader.readAsDataURL(file);
         };
-        window.startScanner = () => {
-            document.getElementById('scannerContainer').classList.remove('hidden');
-            document.getElementById('photoButtons').classList.add('hidden');
-            if (!window.Html5QrcodeScanner) {
-                const s = document.createElement('script'); s.src = "https://unpkg.com/html5-qrcode";
-                s.onload = initScanner; document.body.appendChild(s);
-            } else initScanner();
-        };
-        function initScanner() {
-            scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+
+        window.startScan = () => {
+            document.getElementById('scannerUI').classList.remove('hidden');
+            const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
             scanner.render(async (text) => {
-                scanner.clear(); stopScanner();
-                const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${text}.json`);
-                const data = await res.json();
-                document.getElementById('itemName').value = data.status === 1 ? data.product.product_name : "未知物品";
+                scanner.clear();
+                document.getElementById('scannerUI').classList.add('hidden');
+                // 調用公開食物資料庫 API
+                try {
+                    const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${text}.json`);
+                    const data = await res.json();
+                    if (data.status === 1) {
+                        document.getElementById('itemName').value = data.product.product_name || "未知物品";
+                        alert("掃描成功！已自動填入名稱。");
+                    } else {
+                        alert("掃描成功，但資料庫中找不到此物品名稱，請手動填寫。");
+                    }
+                } catch (e) { alert("連線查詢失敗，請手動輸入。"); }
             });
-        }
-        window.stopScanner = () => { if(scanner) scanner.clear(); document.getElementById('scannerContainer').classList.add('hidden'); document.getElementById('photoButtons').classList.remove('hidden'); };
+        };
+
         window.saveItem = async () => {
             const name = document.getElementById('itemName').value.trim();
-            if (!name) return alert("請輸入名稱");
-            await addDoc(collection(db, 'artifacts', 'family-inventory', 'public', 'data', `list_${familyCode}`), {
-                name, expiryDate: document.getElementById('expiryDate').value, quantity: currentQty,
-                image: currentImg, category: '其他', createdAt: new Date().getTime()
-            });
-            showPage('list');
+            const location = document.getElementById('itemLocation').value;
+            if (!name) return alert("物品名稱是必填的喔！");
+
+            const btn = document.getElementById('saveBtn');
+            btn.disabled = true;
+            btn.innerText = "正在儲存中...";
+
+            try {
+                await addDoc(collection(db, 'artifacts', 'family-inventory', 'public', 'data', `list_${familyCode}`), {
+                    name,
+                    location,
+                    category: selectedCategory,
+                    quantity: document.getElementById('itemQty').value,
+                    expiryDate: document.getElementById('expiryDate').value,
+                    purchaseDate: document.getElementById('purchaseDate').value,
+                    note: document.getElementById('itemNote').value,
+                    image: currentImage,
+                    createdAt: Date.now()
+                });
+                showPage('list');
+            } catch (e) {
+                alert("儲存失敗，請檢查連線或 Firebase 規則！");
+                btn.disabled = false;
+                btn.innerText = "📦 儲存到雲端庫存";
+            }
         };
-        window.deleteItem = async (id, name) => { if (confirm(`刪除 ${name}？`)) await deleteDoc(doc(db, 'artifacts', 'family-inventory', 'public', 'data', `list_${familyCode}`, id)); };
-        window.changeFamilyCode = () => { familyCode = document.getElementById('newFamilyCode').value.toUpperCase(); localStorage.setItem('familyCode', familyCode); startListening(); showPage('list'); alert("同步成功！"); };
-        function updateFamilyCodeDisplay() { document.getElementById('displayFamilyCode').innerText = `群組: ${familyCode}`; }
-        function getEmoji(cat) { return '📦'; }
+
+        window.deleteItem = async (id, name) => {
+            if (confirm(`確定要刪除「${name}」嗎？`)) {
+                await deleteDoc(doc(db, 'artifacts', 'family-inventory', 'public', 'data', `list_${familyCode}`, id));
+            }
+        };
+
+        window.changeFamilyCode = () => {
+            const code = document.getElementById('newCode').value.trim().toUpperCase();
+            if (code.length < 3) return alert("代碼太短");
+            familyCode = code;
+            localStorage.setItem('familyCode', code);
+            document.getElementById('familyBadge').innerText = `群組: ${familyCode}`;
+            startListening();
+            showPage('list');
+            alert("已同步至新群組！");
+        };
+
+        // --- 備份功能 ---
+        window.exportData = () => {
+            if (items.length === 0) return alert("清單是空的，無法備份");
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(items));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", `家庭庫存備份_${familyCode}_${new Date().toLocaleDateString()}.json`);
+            dlAnchorElem.click();
+        };
+
+        window.importData = (input) => {
+            const file = input.files[0];
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const importedItems = JSON.parse(e.target.result);
+                    if (confirm(`即將導入 ${importedItems.length} 筆資料到「${familyCode}」，是否繼續？`)) {
+                        for (const item of importedItems) {
+                            const { id, ...data } = item; // 移除舊 ID，由 Firebase 生成新 ID
+                            await addDoc(collection(db, 'artifacts', 'family-inventory', 'public', 'data', `list_${familyCode}`), data);
+                        }
+                        alert("導入成功！");
+                        showPage('list');
+                    }
+                } catch (err) { alert("檔案格式不正確！"); }
+            };
+            reader.readAsText(file);
+        };
+
+        // --- 輔助函式 ---
         function getExpiryInfo(date) {
-            if (!date) return { label: '無日期', bg: 'bg-gray-100', text: 'text-gray-500', border: 'border-gray-200' };
+            if (!date) return { label: '未填日期', bg: 'bg-gray-100', text: 'text-gray-500', border: 'border-gray-200' };
             const diff = Math.ceil((new Date(date) - new Date().setHours(0,0,0,0)) / 86400000);
-            if (diff < 0) return { label: '已過期', bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-400' };
-            if (diff <= 7) return { label: `快到期`, bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-400' };
-            return { label: `新鮮`, bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-400' };
+            if (diff < 0) return { label: '已過期', bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-400' };
+            if (diff <= 7) return { label: `即將到期 (${diff}天)`, bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-400' };
+            return { label: `還可放 ${diff} 天`, bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-400' };
         }
     </script>
 </body>
