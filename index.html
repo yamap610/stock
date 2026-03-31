@@ -3,11 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>🏠 家用庫存</title>
+    <title>🏠 家用庫存系統</title>
+    <!-- React 核心庫 -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS 樣式庫 -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 圖標庫 -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script>
         tailwind.config = {
@@ -29,10 +32,11 @@
 <body>
     <div id="root"></div>
 
+    <!-- Firebase SDK 載入 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-        import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDIK4YtcIEsYi9tZp-G1-V9A5n6_S4_mY",
@@ -43,26 +47,27 @@
             appId: "1:710931143817:web:8656641e7373f7895e6348"
         };
 
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        // 嘗試啟用離線快取（如果網路不穩很有幫助）
         try {
-            const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-            window.familyApp = { auth, db, signInAnonymously, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, query, orderBy, serverTimestamp };
-            console.log("Firebase 基礎設施初始化成功");
-        } catch (e) {
-            console.error("Firebase 初始化失敗:", e);
-        }
+            enableIndexedDbPersistence(db).catch(() => {});
+        } catch (e) {}
+
+        window.familyApp = { auth, db, signInAnonymously, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, query, orderBy, serverTimestamp };
     </script>
 
+    <!-- React 應用程式邏輯 -->
     <script type="text/babel" data-type="module">
         const { useState, useEffect } = React;
 
-        const LOCATIONS = ["冰箱", "廚房", "零食櫃", "小倉庫", "藥品櫃", "洗手間"];
+        const LOCATIONS = ["冰箱", "廚房", "零食櫃", "小倉庫", "藥品櫃", "洗手間", "其他"];
         const CATEGORIES = ["食品飲料", "衛生用品", "生活用品", "清潔用品", "藥品保健", "其他"];
         const EMOJI = { "食品飲料": "🍙", "衛生用品": "🧻", "生活用品": "📦", "清潔用品": "🧹", "藥品保健": "💊", "其他": "📌" };
 
         function App() {
-            const [user, setUser] = useState(null);
             const [items, setItems] = useState([]);
             const [view, setView] = useState('list');
             const [loading, setLoading] = useState(true);
@@ -70,37 +75,37 @@
 
             useEffect(() => {
                 let unsub = null;
-                const init = async () => {
+                const startApp = async () => {
                     try {
-                        if (!window.familyApp) throw new Error("Firebase 未能正確加載，請檢查網路。");
                         const { auth, signInAnonymously, db, collection, query, orderBy, onSnapshot } = window.familyApp;
                         
-                        const cred = await signInAnonymously(auth);
-                        setUser(cred.user);
+                        // 1. 匿名登入
+                        await signInAnonymously(auth);
 
+                        // 2. 監聽資料庫
                         const q = query(collection(db, 'inventory'), orderBy('createdAt', 'desc'));
                         unsub = onSnapshot(q, (snap) => {
                             setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
                             setLoading(false);
+                            setError(null);
                         }, (err) => {
-                            console.error("資料監聽失敗:", err);
-                            setError("資料讀取權限錯誤，請檢查 Firebase 規則。");
+                            console.error("Firebase Error:", err);
+                            setError("連線失敗：請嘗試更換網路環境（例如關閉 Wi-Fi 使用 5G）。");
                             setLoading(false);
                         });
                     } catch (e) {
-                        console.error("初始化失敗:", e);
-                        setError(e.message);
+                        setError("系統初始化失敗：" + e.message);
                         setLoading(false);
                     }
                 };
-                init();
+                startApp();
                 return () => unsub && unsub();
             }, []);
 
             const handleSave = async (e) => {
                 e.preventDefault();
-                const f = e.target;
                 const { db, collection, addDoc, serverTimestamp } = window.familyApp;
+                const f = e.target;
                 try {
                     await addDoc(collection(db, 'inventory'), {
                         name: f.name.value,
@@ -111,115 +116,95 @@
                         createdAt: serverTimestamp()
                     });
                     setView('list');
-                } catch (e) {
-                    alert("儲存失敗: " + e.message);
-                }
+                } catch (e) { alert("儲存失敗"); }
             };
 
-            const changeQty = async (id, current, d) => {
+            const updateQty = async (id, cur, d) => {
                 const { db, doc, updateDoc } = window.familyApp;
-                try {
-                    await updateDoc(doc(db, 'inventory', id), { qty: Math.max(0, current + d) });
-                } catch (e) {
-                    console.error("更新失敗");
-                }
+                await updateDoc(doc(db, 'inventory', id), { qty: Math.max(0, cur + d) });
             };
 
             if (loading) return (
-                <div className="flex flex-col h-screen items-center justify-center bg-brand-50">
-                    <div className="w-12 h-12 border-4 border-brand-200 border-t-brand-800 rounded-full animate-spin mb-4"></div>
-                    <p className="text-brand-500 font-bold">正在連線至雲端資料庫...</p>
+                <div className="h-screen flex flex-col items-center justify-center bg-brand-50">
+                    <div className="w-8 h-8 border-4 border-brand-200 border-t-brand-800 rounded-full animate-spin mb-4"></div>
+                    <p className="font-bold text-brand-600 tracking-wider">正在連線至全家人的資料庫...</p>
                 </div>
             );
 
             if (error) return (
-                <div className="flex flex-col h-screen items-center justify-center p-10 text-center bg-brand-50">
-                    <i className="ph ph-warning-octagon text-5xl text-red-400 mb-4"></i>
-                    <p className="text-red-600 font-bold mb-2">出錯了</p>
-                    <p className="text-brand-400 text-sm mb-6">{error}</p>
-                    <button onClick={() => window.location.reload()} className="px-6 py-2 bg-brand-800 text-white rounded-full">重試</button>
+                <div className="h-screen p-10 flex flex-col items-center justify-center text-center bg-brand-50">
+                    <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-6 card-shadow text-red-400">
+                        <i className="ph ph-wifi-slash text-4xl"></i>
+                    </div>
+                    <h2 className="font-black text-brand-900 text-xl mb-4 italic underline decoration-red-400 decoration-4 underline-offset-4">連線遇到一點問題</h2>
+                    <p className="text-brand-500 text-sm mb-8 leading-relaxed font-medium">{error}</p>
+                    <button onClick={() => window.location.reload()} className="w-full py-4 bg-brand-800 text-white rounded-full font-bold shadow-lg ios-active">點我再試一次</button>
                 </div>
             );
 
             return (
-                <div className="max-w-md mx-auto min-h-screen pb-24">
-                    <header className="p-8 pb-4">
-                        <div className="flex justify-between items-end">
-                            <div>
-                                <h1 className="text-3xl font-black text-brand-900 tracking-tight">家用庫存</h1>
-                                <p className="text-brand-400 font-medium italic">Our Family Stock</p>
-                            </div>
-                            <div className="text-right">
-                                <span className="text-2xl font-bold text-brand-800">{items.length}</span>
-                                <span className="text-sm text-brand-400 ml-1">件</span>
-                            </div>
-                        </div>
+                <div className="max-w-md mx-auto min-h-screen bg-brand-50 pb-28">
+                    <header className="p-8 pb-4 flex justify-between items-end">
+                        <h1 className="text-3xl font-black text-brand-900 tracking-tighter italic">家用庫存</h1>
+                        <div className="text-brand-400 font-bold text-sm bg-white px-4 py-1 rounded-full card-shadow border border-brand-100">{items.length} 件</div>
                     </header>
 
-                    <main className="px-6">
+                    <main className="px-6 space-y-4">
                         {view === 'list' ? (
-                            <div className="grid gap-4">
+                            <>
                                 {items.map(item => (
-                                    <div key={item.id} className="bg-white p-4 rounded-[2rem] card-shadow flex items-center gap-4 border border-brand-100 animate-in fade-in duration-500">
+                                    <div key={item.id} className="bg-white p-4 rounded-3xl card-shadow flex items-center gap-4 border border-brand-50">
                                         <div className="text-3xl bg-brand-50 w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner">{item.emoji}</div>
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="font-bold text-brand-900 truncate">{item.name}</h3>
-                                            <p className="text-[10px] text-brand-400 font-bold uppercase tracking-wider">📍 {item.loc}</p>
+                                        <div className="flex-1 font-bold truncate">
+                                            {item.name} 
+                                            <div className="text-[10px] text-brand-400 font-black uppercase italic tracking-tighter">📍 {item.loc}</div>
                                         </div>
                                         <div className="flex items-center gap-2 bg-brand-50 rounded-full p-1 border border-brand-100">
-                                            <button onClick={() => changeQty(item.id, item.qty, -1)} className="w-8 h-8 rounded-full bg-white shadow-sm font-bold text-brand-600 ios-active">-</button>
+                                            <button onClick={() => updateQty(item.id, item.qty, -1)} className="w-8 h-8 rounded-full bg-white shadow-sm font-bold text-brand-600 ios-active">-</button>
                                             <span className="w-6 text-center font-black text-brand-900">{item.qty}</span>
-                                            <button onClick={() => changeQty(item.id, item.qty, 1)} className="w-8 h-8 rounded-full bg-white shadow-sm font-bold text-brand-600 ios-active">+</button>
+                                            <button onClick={() => updateQty(item.id, item.qty, 1)} className="w-8 h-8 rounded-full bg-white shadow-sm font-bold text-brand-600 ios-active">+</button>
                                         </div>
                                     </div>
                                 ))}
-                                {items.length === 0 && (
-                                    <div className="text-center py-20 opacity-20">
-                                        <i className="ph ph-shopping-cart text-7xl"></i>
-                                        <p className="mt-4 font-bold text-xl">還沒有庫存紀錄</p>
-                                    </div>
-                                )}
-                            </div>
+                                {items.length === 0 && <div className="text-center py-20 text-brand-200 font-bold italic opacity-60">目前空空如也，點下方開始新增！</div>}
+                            </>
                         ) : (
-                            <form onSubmit={handleSave} className="bg-white p-8 rounded-[3rem] card-shadow space-y-6 animate-in slide-in-from-bottom-10 duration-500">
-                                <h2 className="text-xl font-black text-center text-brand-900">✨ 新增庫存</h2>
+                            <form onSubmit={handleSave} className="bg-white p-8 rounded-[3rem] card-shadow space-y-6">
+                                <h2 className="text-2xl font-black text-center text-brand-900">✨ 新增品項</h2>
                                 <div className="space-y-4">
                                     <div className="space-y-1">
-                                        <p className="text-xs font-bold text-brand-400 ml-2">品名</p>
-                                        <input name="name" required placeholder="例如：純喫茶" className="w-full p-4 bg-brand-50 rounded-2xl outline-none border-2 border-transparent focus:border-brand-200 transition-all font-bold" />
+                                        <p className="text-[10px] font-black text-brand-400 ml-3 uppercase">物品名稱</p>
+                                        <input name="name" required placeholder="例如：純鮮乳、口罩" className="w-full p-4 bg-brand-50 rounded-2xl outline-none font-bold focus:bg-white border-2 border-transparent focus:border-brand-200 transition-all" />
                                     </div>
                                     <div className="flex gap-2">
                                         <div className="w-24 space-y-1">
-                                            <p className="text-xs font-bold text-brand-400 ml-2 text-center">數量</p>
-                                            <input name="qty" type="number" defaultValue="1" className="w-full p-4 bg-brand-50 rounded-2xl outline-none font-bold text-center" />
+                                            <p className="text-[10px] font-black text-brand-400 ml-3 uppercase text-center">數量</p>
+                                            <input name="qty" type="number" defaultValue="1" className="w-full p-4 bg-brand-50 rounded-2xl outline-none font-black text-center text-xl" />
                                         </div>
                                         <div className="flex-1 space-y-1">
-                                            <p className="text-xs font-bold text-brand-400 ml-2">存放在</p>
+                                            <p className="text-[10px] font-black text-brand-400 ml-3 uppercase">存放地點</p>
                                             <select name="loc" className="w-full p-4 bg-brand-50 rounded-2xl outline-none font-bold appearance-none">
                                                 {LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
                                             </select>
                                         </div>
                                     </div>
                                     <div className="space-y-1">
-                                        <p className="text-xs font-bold text-brand-400 ml-2">類別</p>
+                                        <p className="text-[10px] font-black text-brand-400 ml-3 uppercase">分類</p>
                                         <select name="cat" className="w-full p-4 bg-brand-50 rounded-2xl outline-none font-bold appearance-none">
                                             {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                         </select>
                                     </div>
                                 </div>
                                 <div className="flex gap-4 pt-4">
-                                    <button type="button" onClick={() => setView('list')} className="flex-1 py-4 bg-brand-100 text-brand-700 rounded-full font-black ios-active">取消</button>
-                                    <button type="submit" className="flex-1 py-4 bg-brand-800 text-white rounded-full font-black shadow-lg ios-active">儲存</button>
+                                    <button type="button" onClick={() => setView('list')} className="flex-1 py-4 bg-brand-100 text-brand-700 rounded-full font-black">取消</button>
+                                    <button type="submit" className="flex-1 py-4 bg-brand-800 text-white rounded-full font-black shadow-lg ios-active">儲存到雲端</button>
                                 </div>
                             </form>
                         )}
                     </main>
 
-                    <button 
-                        onClick={() => setView(view === 'list' ? 'add' : 'list')}
-                        className="fixed bottom-10 left-1/2 -translate-x-1/2 w-16 h-16 bg-brand-900 text-white rounded-full shadow-2xl flex items-center justify-center ios-active z-50 border-4 border-white"
-                    >
-                        <i className={`ph ph-bold ${view === 'list' ? 'ph-plus' : 'ph-house'} text-2xl`}></i>
+                    <button onClick={() => setView(view === 'list' ? 'add' : 'list')} className="fixed bottom-10 left-1/2 -translate-x-1/2 w-16 h-16 bg-brand-900 text-white rounded-full shadow-2xl flex items-center justify-center z-50 border-4 border-white ios-active transition-all">
+                        <i className={`ph ph-bold ${view === 'list' ? 'ph-plus' : 'ph-x'} text-2xl`}></i>
                     </button>
                 </div>
             );
