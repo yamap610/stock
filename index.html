@@ -3,148 +3,428 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>家庭庫存管家 - 免設定版</title>
+    <title>家庭庫存管家</title>
+
+    <!-- React -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Firebase compat (不用 dynamic import，Safari 相容) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
-        body { font-family: 'Noto Sans TC', sans-serif; background-color: #F5F0EA; -webkit-tap-highlight-color: transparent; }
-        .nichi-card { background: white; border-radius: 1.5rem; border: 1px solid #E8DCC8; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #FAF7F2;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior: none;
+        }
+        .card {
+            background: #fff;
+            border-radius: 20px;
+            border: 1.5px solid #EDE5D8;
+            box-shadow: 0 2px 12px rgba(140,110,80,0.07);
+        }
+        .loc-card {
+            background: #fff;
+            border-radius: 20px;
+            border: 1.5px solid #EDE5D8;
+            box-shadow: 0 2px 8px rgba(140,110,80,0.06);
+            transition: transform 0.12s;
+            cursor: pointer;
+        }
+        .loc-card:active { transform: scale(0.96); }
+        .low-stock { border-color: #F4C37A !important; background: #FFFBF3 !important; }
+        .low-stock .count { color: #D97706 !important; }
+        .expiry-warn { color: #DC2626; font-weight: 700; font-size: 12px; }
+        .expiry-soon { color: #D97706; font-weight: 600; font-size: 12px; }
+        .fab {
+            width: 60px; height: 60px;
+            background: #7C5C3E;
+            border-radius: 50%;
+            border: 4px solid #FAF7F2;
+            box-shadow: 0 4px 20px rgba(124,92,62,0.35);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 26px; color: #fff;
+            transition: transform 0.12s;
+        }
+        .fab:active { transform: scale(0.92); }
+        .item-row {
+            border-bottom: 1px solid #F0E8DC;
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #fff;
+        }
+        .item-row:last-child { border-bottom: none; }
+        .stepper-btn {
+            width: 34px; height: 34px;
+            border-radius: 50%;
+            border: 1.5px solid #DDD0BE;
+            background: #FAF7F2;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; font-weight: 700; color: #7C5C3E;
+            cursor: pointer; flex-shrink: 0;
+        }
+        .stepper-btn:active { background: #EDE5D8; }
+        input, select { font-family: 'Noto Sans TC', sans-serif; outline: none; }
+        input:focus { border-color: #7C5C3E !important; }
+        .sheet-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.38);
+            z-index: 40;
+            animation: fadeIn 0.2s ease;
+        }
+        .sheet {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: #fff;
+            border-radius: 28px 28px 0 0;
+            z-index: 50;
+            padding-bottom: 32px;
+            animation: slideUp 0.25s cubic-bezier(0.32,0.72,0,1);
+            max-height: 92vh;
+            overflow-y: auto;
+        }
+        @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+        @keyframes slideUp { from { transform: translateY(100%) } to { transform: translateY(0) } }
+        .sheet-handle {
+            width: 40px; height: 4px; background: #DDD0BE;
+            border-radius: 2px; margin: 14px auto 20px;
+        }
+        .del-btn {
+            padding: 6px 14px; border-radius: 20px;
+            border: 1.5px solid #FECACA; background: #FFF5F5;
+            color: #DC2626; font-size: 13px; font-weight: 700; cursor: pointer;
+        }
+        .top-bar {
+            background: #F2EBE0; border-radius: 18px; padding: 12px 16px;
+            display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
+        }
+        .empty-state { text-align: center; padding: 48px 24px; color: #B8A898; }
+        .page { animation: pageIn 0.18s ease; }
+        @keyframes pageIn { from { opacity:0; transform: translateY(6px) } to { opacity:1; transform: translateY(0) } }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
-        // --- 根據您的 Firebase 控制台完整填入 ---
+        // ⚠️ 請換成您 Firebase 控制台的真實 apiKey
         const firebaseConfig = {
-            apiKey: "AIzaSyB3_lR5_h3X2_Z3_X3_Z3_X3_Z3_X3", 
-            authDomain: "yamap610-stock.firebaseapp.com",
-            projectId: "yamap610-stock",
-            storageBucket: "yamap610-stock.appspot.com",
-            messagingSenderId: "367375176503",
-            appId: "1:367375176503:web:757827818e6e5828e833f4"
-        };
+  apiKey: "AIzaSyDIK4YtcIEsYi9BiaGeEdG8Uc3VLHY9WoA",
+  authDomain: "stockapp-a1ccc.firebaseapp.com",
+  projectId: "stockapp-a1ccc",
+  storageBucket: "stockapp-a1ccc.firebasestorage.app",
+  messagingSenderId: "710931143817",
+  appId: "1:710931143817:web:a2a5b6975b2b06124a7a58"
+};
+
+        // compat 寫法，不需要 dynamic import，Safari 完全相容
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
 
         const LOCATIONS = [
-            { id: 'fridge', name: '冷藏', icon: '🧊' },
-            { id: 'freezer', name: '冷凍', icon: '❄️' },
-            { id: 'kitchen', name: '廚房', icon: '🍳' },
+            { id: 'fridge',    name: '冷藏', icon: '🧊' },
+            { id: 'freezer',   name: '冷凍', icon: '❄️' },
+            { id: 'kitchen',   name: '廚房', icon: '🍳' },
             { id: 'warehouse', name: '倉庫', icon: '📦' },
-            { id: 'other', name: '其他', icon: '🏷️' }
+            { id: 'other',     name: '其他', icon: '🏷️' }
         ];
 
-        async function initApp() {
-            const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js");
-            const { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js");
-
-            const app = initializeApp(firebaseConfig);
-            const db = getFirestore(app);
-
-            function InventoryApp() {
-                const [familyCode, setFamilyCode] = useState(localStorage.getItem('familyCode') || '');
-                const [view, setView] = useState(familyCode ? 'main' : 'login');
-                const [items, setItems] = useState([]);
-                const [editItem, setEditItem] = useState(null);
-
-                // 監聽資料 - 因為規則是 if true，不需要登入即可讀取
-                useEffect(() => {
-                    if (!familyCode || view === 'login') return;
-                    const colRef = collection(db, 'family_inventory', familyCode, 'items');
-                    return onSnapshot(colRef, (snap) => {
-                        setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                    });
-                }, [familyCode, view]);
-
-                useEffect(() => { if(window.lucide) lucide.createIcons(); });
-
-                const save = async (data) => {
-                    const colRef = collection(db, 'family_inventory', familyCode, 'items');
-                    if (data.id) {
-                        const { id, ...payload } = data;
-                        await updateDoc(doc(db, 'family_inventory', familyCode, 'items', id), payload);
-                    } else {
-                        await addDoc(colRef, { ...data, time: Date.now() });
-                    }
-                    setView('main');
-                };
-
-                if (view === 'login') return (
-                    <div className="min-h-screen flex items-center justify-center p-6 text-center">
-                        <div className="nichi-card p-8 w-full max-w-sm">
-                            <div className="text-5xl mb-4">🏠</div>
-                            <h1 className="text-xl font-bold mb-6 text-[#5C4532]">請輸入家庭共同代碼</h1>
-                            <input type="text" id="code" placeholder="例如：happy123" className="w-full border-2 border-[#E8DCC8] rounded-xl p-4 text-center text-lg font-bold mb-4" />
-                            <button onClick={() => {
-                                const v = document.getElementById('code').value;
-                                if(v) { localStorage.setItem('familyCode', v); setFamilyCode(v); setView('main'); }
-                            }} className="w-full bg-[#8B6E52] text-white py-4 rounded-xl font-bold">進入系統</button>
-                        </div>
-                    </div>
-                );
-
-                if (view === 'main') return (
-                    <div className="p-4 pb-24 max-w-md mx-auto">
-                        <div className="bg-[#D9CDBF] p-4 rounded-2xl mb-6 flex justify-between items-center text-[#5C4532]">
-                            <span className="font-bold">家：{familyCode}</span>
-                            <button onClick={() => { localStorage.removeItem('familyCode'); location.reload(); }} className="text-xs underline">登出</button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            {LOCATIONS.map(l => (
-                                <button key={l.id} onClick={() => { setEditItem({ location: l.id }); setView('form'); }} className="nichi-card p-5 text-left aspect-square flex flex-col justify-between active:scale-95 transition-all">
-                                    <div className="text-4xl">{l.icon}</div>
-                                    <div className="text-[#8B6E52] font-bold text-2xl">{items.filter(i=>i.location===l.id).length}</div>
-                                    <div className="font-bold text-[#5C4532]">{l.name}</div>
-                                </button>
-                            ))}
-                        </div>
-                        <div className="fixed bottom-8 left-0 right-0 flex justify-center">
-                            <button onClick={() => { setEditItem(null); setView('form'); }} className="w-16 h-16 bg-[#8B6E52] text-white rounded-full shadow-xl flex items-center justify-center border-4 border-white">
-                                <i data-lucide="plus"></i>
-                            </button>
-                        </div>
-                    </div>
-                );
-
-                if (view === 'form') return (
-                    <div className="p-6 bg-white min-h-screen">
-                        <h2 className="text-xl font-bold mb-6 text-[#5C4532]">新增/修改物品</h2>
-                        <div className="space-y-4">
-                            <div><label className="text-sm font-bold text-[#8B6E52]">品名</label><input type="text" id="n" defaultValue={editItem?.name} className="w-full border-2 border-[#E8DCC8] rounded-xl p-3 mt-1" /></div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div><label className="text-sm font-bold text-[#8B6E52]">數量</label><input type="number" id="q" defaultValue={editItem?.qty || 1} className="w-full border-2 border-[#E8DCC8] rounded-xl p-3 mt-1" /></div>
-                                <div><label className="text-sm font-bold text-[#8B6E52]">地點</label>
-                                    <select id="l" defaultValue={editItem?.location} className="w-full border-2 border-[#E8DCC8] rounded-xl p-3 mt-1">
-                                        {LOCATIONS.map(l=><option key={l.id} value={l.id}>{l.icon} {l.name}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-                            <button onClick={() => {
-                                const d = {
-                                    ...editItem,
-                                    name: document.getElementById('n').value,
-                                    qty: Number(document.getElementById('q').value),
-                                    location: document.getElementById('l').value
-                                };
-                                if(!d.name) return alert('請填寫品名');
-                                save(d);
-                            }} className="w-full bg-[#8B6E52] text-white py-4 rounded-xl font-bold shadow-lg">儲存並同步</button>
-                            <button onClick={() => setView('main')} className="w-full text-gray-400 py-2">取消</button>
-                        </div>
-                    </div>
-                );
-            }
-
-            ReactDOM.createRoot(document.getElementById('root')).render(<InventoryApp />);
+        function daysUntil(dateStr) {
+            if (!dateStr) return null;
+            const today = new Date(); today.setHours(0,0,0,0);
+            return Math.round((new Date(dateStr) - today) / 86400000);
         }
 
-        initApp();
+        function ExpiryBadge({ dateStr }) {
+            const days = daysUntil(dateStr);
+            if (days === null) return null;
+            if (days < 0)   return <span className="expiry-warn">⚠️ 已過期{Math.abs(days)}天</span>;
+            if (days === 0) return <span className="expiry-warn">⚠️ 今天到期</span>;
+            if (days <= 3)  return <span className="expiry-soon">⏰ {days}天後到期</span>;
+            return <span style={{fontSize:12,color:'#9CA3AF'}}>到期：{dateStr}</span>;
+        }
+
+        /* ── 表單 Sheet ── */
+        function FormSheet({ item, onSave, onDelete, onClose }) {
+            const isEdit = !!(item && item.id);
+            const [name, setName]     = useState((item && item.name) || '');
+            const [qty, setQty]       = useState(item && item.qty != null ? item.qty : 1);
+            const [location, setLoc]  = useState((item && item.location) || LOCATIONS[0].id);
+            const [expiry, setExpiry] = useState((item && item.expiry) || '');
+
+            const handleSave = () => {
+                if (!name.trim()) { alert('請填寫品名'); return; }
+                const payload = { name: name.trim(), qty, location, expiry };
+                if (isEdit) payload.id = item.id;
+                onSave(payload);
+            };
+
+            const S = { // inline style helpers
+                label: { fontSize:13, fontWeight:700, color:'#8B6E52', display:'block', marginBottom:6 },
+                input: { width:'100%', border:'2px solid #EDE5D8', borderRadius:16, padding:'12px 14px', fontSize:16, color:'#3D2B1F' },
+                block: { marginBottom:20 },
+            };
+
+            return (
+                <>
+                    <div className="sheet-overlay" onClick={onClose}></div>
+                    <div className="sheet">
+                        <div className="sheet-handle"></div>
+                        <div style={{padding:'0 24px 16px'}}>
+                            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
+                                <h2 style={{fontSize:20,fontWeight:900,color:'#3D2B1F'}}>{isEdit ? '修改品項' : '新增品項'}</h2>
+                                {onDelete && <button className="del-btn" onClick={onDelete}>🗑 刪除</button>}
+                            </div>
+
+                            <div style={S.block}>
+                                <label style={S.label}>品名</label>
+                                <input type="text" value={name} onChange={e=>setName(e.target.value)}
+                                    placeholder="例：蘋果、牛奶 500ml" style={S.input} />
+                            </div>
+
+                            <div style={S.block}>
+                                <label style={S.label}>數量</label>
+                                <div style={{display:'flex',alignItems:'center',gap:16}}>
+                                    <button className="stepper-btn" style={{width:44,height:44,fontSize:22}}
+                                        onClick={()=>setQty(q=>Math.max(0,q-1))}>－</button>
+                                    <span style={{fontSize:32,fontWeight:900,color:'#5C4532',width:48,textAlign:'center'}}>{qty}</span>
+                                    <button className="stepper-btn" style={{width:44,height:44,fontSize:22}}
+                                        onClick={()=>setQty(q=>q+1)}>＋</button>
+                                </div>
+                            </div>
+
+                            <div style={S.block}>
+                                <label style={S.label}>存放地點</label>
+                                <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                                    {LOCATIONS.map(l => (
+                                        <button key={l.id} onClick={()=>setLoc(l.id)} style={{
+                                            padding:'8px 14px', borderRadius:20,
+                                            border: location===l.id ? '2px solid #7C5C3E' : '2px solid #EDE5D8',
+                                            background: location===l.id ? '#7C5C3E' : '#fff',
+                                            color: location===l.id ? '#fff' : '#7C5C3E',
+                                            fontWeight:700, fontSize:14, cursor:'pointer'
+                                        }}>{l.icon} {l.name}</button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div style={S.block}>
+                                <label style={S.label}>到期日（選填）</label>
+                                <input type="date" value={expiry} onChange={e=>setExpiry(e.target.value)} style={S.input} />
+                                {expiry && <div style={{marginTop:6,marginLeft:4}}><ExpiryBadge dateStr={expiry} /></div>}
+                            </div>
+
+                            <button onClick={handleSave} style={{
+                                width:'100%',background:'#7C5C3E',color:'#fff',
+                                padding:16,borderRadius:16,fontWeight:900,fontSize:17,marginBottom:10
+                            }}>✓ 儲存並同步</button>
+                            <button onClick={onClose} style={{width:'100%',color:'#9CA3AF',padding:10,fontWeight:500,fontSize:15}}>取消</button>
+                        </div>
+                    </div>
+                </>
+            );
+        }
+
+        /* ── 主 App ── */
+        function InventoryApp() {
+            const [familyCode, setFamilyCode] = useState(localStorage.getItem('familyCode') || '');
+            const [view, setView]             = useState(familyCode ? 'main' : 'login');
+            const [items, setItems]           = useState([]);
+            const [activeLoc, setActiveLoc]   = useState(null);
+            const [editItem, setEditItem]     = useState(null);
+            const [showForm, setShowForm]     = useState(false);
+            const codeRef = useRef();
+
+            useEffect(() => {
+                if (!familyCode || view === 'login') return;
+                const unsub = db.collection('family_inventory').doc(familyCode).collection('items')
+                    .onSnapshot(snap => setItems(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+                return () => unsub();
+            }, [familyCode, view]);
+
+            const col = () => db.collection('family_inventory').doc(familyCode).collection('items');
+
+            const save = async (data) => {
+                try {
+                    if (data.id) {
+                        const { id, ...payload } = data;
+                        await col().doc(id).update(payload);
+                    } else {
+                        await col().add({ ...data, time: Date.now() });
+                    }
+                    setShowForm(false);
+                } catch(e) { alert('儲存失敗：' + e.message); }
+            };
+
+            const remove = async (id) => {
+                if (!window.confirm('確定要刪除這個品項嗎？')) return;
+                await col().doc(id).delete();
+                setShowForm(false);
+            };
+
+            const updateQty = async (item, delta) => {
+                const newQty = Math.max(0, (item.qty || 0) + delta);
+                await col().doc(item.id).update({ qty: newQty });
+            };
+
+            /* 登入 */
+            if (view === 'login') return (
+                <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+                    <div className="card" style={{padding:32,width:'100%',maxWidth:360,textAlign:'center'}}>
+                        <div style={{fontSize:64,marginBottom:12}}>🏠</div>
+                        <h1 style={{fontSize:20,fontWeight:900,color:'#5C4532',marginBottom:6}}>家庭庫存管家</h1>
+                        <p style={{fontSize:14,color:'#9CA3AF',marginBottom:24}}>輸入家庭代碼，共同管理庫存</p>
+                        <input ref={codeRef} type="text" placeholder="例如：happy123" defaultValue={familyCode}
+                            style={{width:'100%',border:'2px solid #EDE5D8',borderRadius:16,padding:14,
+                                    textAlign:'center',fontSize:18,fontWeight:700,color:'#5C4532',marginBottom:16}} />
+                        <button onClick={() => {
+                            const v = codeRef.current.value.trim();
+                            if (v) { localStorage.setItem('familyCode', v); setFamilyCode(v); setView('main'); }
+                        }} style={{width:'100%',background:'#7C5C3E',color:'#fff',padding:16,borderRadius:16,fontWeight:900,fontSize:17}}>
+                            進入系統
+                        </button>
+                    </div>
+                </div>
+            );
+
+            /* 主畫面 */
+            const locItems = activeLoc === '__all__'
+                ? [...items]
+                : activeLoc ? items.filter(i => i.location === activeLoc) : [];
+            const currentLoc = LOCATIONS.find(l => l.id === activeLoc);
+
+            return (
+                <div style={{maxWidth:480,margin:'0 auto',minHeight:'100vh',paddingBottom:100}}>
+
+                    <div style={{position:'sticky',top:0,zIndex:20,padding:'16px 16px 0'}}>
+                        <div className="top-bar">
+                            {activeLoc ? (
+                                <>
+                                    <button onClick={() => setActiveLoc(null)}
+                                        style={{color:'#7C5C3E',fontWeight:900,fontSize:24,marginRight:8,lineHeight:1}}>‹</button>
+                                    <span style={{fontWeight:700,color:'#5C4532',flex:1}}>
+                                        {activeLoc === '__all__' ? '📋 所有物品' : `${currentLoc?.icon} ${currentLoc?.name}`}
+                                    </span>
+                                    <span style={{fontSize:13,color:'#9CA3AF'}}>{locItems.length} 項</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span style={{fontWeight:700,color:'#5C4532'}}>🏠 家：{familyCode}</span>
+                                    <button onClick={() => { localStorage.removeItem('familyCode'); location.reload(); }}
+                                        style={{fontSize:12,color:'#9CA3AF',textDecoration:'underline'}}>登出</button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    <div style={{padding:'0 16px'}} className="page">
+
+                        {/* 地點卡片 */}
+                        {!activeLoc && (
+                            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+                                {LOCATIONS.map(l => {
+                                    const cnt = items.filter(i => i.location === l.id).length;
+                                    const hasLow = items.some(i => i.location === l.id && (i.qty || 0) <= 1);
+                                    const warnCnt = items.filter(i => {
+                                        if (i.location !== l.id || !i.expiry) return false;
+                                        const d = daysUntil(i.expiry);
+                                        return d !== null && d <= 3;
+                                    }).length;
+                                    return (
+                                        <div key={l.id}
+                                            className={`loc-card${hasLow ? ' low-stock' : ''}`}
+                                            style={{padding:20,minHeight:140,display:'flex',flexDirection:'column',justifyContent:'space-between'}}
+                                            onClick={() => setActiveLoc(l.id)}>
+                                            <div style={{fontSize:36}}>{l.icon}</div>
+                                            <div className="count" style={{fontSize:32,fontWeight:900,color:'#7C5C3E'}}>{cnt}</div>
+                                            <div style={{fontWeight:700,color:'#5C4532'}}>{l.name}</div>
+                                            {warnCnt > 0 && <div style={{fontSize:12,color:'#D97706',marginTop:4}}>⚠️ {warnCnt} 項快到期</div>}
+                                        </div>
+                                    );
+                                })}
+                                <div className="loc-card"
+                                    style={{padding:20,gridColumn:'1 / -1',display:'flex',alignItems:'center',justifyContent:'space-between'}}
+                                    onClick={() => setActiveLoc('__all__')}>
+                                    <span style={{fontWeight:700,color:'#5C4532',fontSize:17}}>📋 所有物品</span>
+                                    <span style={{fontSize:32,fontWeight:900,color:'#7C5C3E'}}>{items.length}</span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 品項清單 */}
+                        {activeLoc && (
+                            <div className="card" style={{overflow:'hidden'}}>
+                                {locItems.length === 0 ? (
+                                    <div className="empty-state">
+                                        <div style={{fontSize:48,marginBottom:12}}>📭</div>
+                                        <div style={{fontWeight:700,fontSize:17,marginBottom:6}}>這裡還沒有東西</div>
+                                        <div style={{fontSize:14}}>點下方 ＋ 新增物品</div>
+                                    </div>
+                                ) : (
+                                    [...locItems].sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(item => {
+                                        const loc = LOCATIONS.find(l => l.id === item.location);
+                                        return (
+                                            <div key={item.id} className="item-row">
+                                                {activeLoc === '__all__' && (
+                                                    <span style={{fontSize:20,flexShrink:0}}>{loc?.icon || '📦'}</span>
+                                                )}
+                                                <div style={{flex:1,minWidth:0}}>
+                                                    <div style={{fontWeight:700,color:'#3D2B1F',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.name}</div>
+                                                    <div style={{display:'flex',gap:8,alignItems:'center',marginTop:2}}>
+                                                        {activeLoc === '__all__' && <span style={{fontSize:12,color:'#9CA3AF'}}>{loc?.name}</span>}
+                                                        <ExpiryBadge dateStr={item.expiry} />
+                                                    </div>
+                                                </div>
+                                                <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+                                                    <button className="stepper-btn" onClick={()=>updateQty(item,-1)}>－</button>
+                                                    <span style={{width:28,textAlign:'center',fontWeight:900,fontSize:18,color:item.qty<=1?'#D97706':'#5C4532'}}>{item.qty||0}</span>
+                                                    <button className="stepper-btn" onClick={()=>updateQty(item,+1)}>＋</button>
+                                                </div>
+                                                <button onClick={()=>{setEditItem(item);setShowForm(true);}}
+                                                    style={{fontSize:20,padding:'0 4px',color:'#D1C4B4',flexShrink:0}}>✏️</button>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* FAB */}
+                    <div style={{position:'fixed',bottom:28,left:0,right:0,display:'flex',justifyContent:'center',zIndex:30}}>
+                        <button className="fab" onClick={()=>{
+                            setEditItem(activeLoc && activeLoc !== '__all__' ? { location: activeLoc } : null);
+                            setShowForm(true);
+                        }}>＋</button>
+                    </div>
+
+                    {showForm && (
+                        <FormSheet
+                            item={editItem}
+                            onSave={save}
+                            onDelete={editItem && editItem.id ? ()=>remove(editItem.id) : null}
+                            onClose={()=>setShowForm(false)}
+                        />
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<InventoryApp />);
     </script>
 </body>
 </html>
-
